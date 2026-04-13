@@ -32,8 +32,9 @@ pip install -r requirements.txt
 Run `CIP.py` from the command line (or by double-clicking it). When prompted, provide the path to a FASTA file containing the sequences to analyze:
 
 ```
-CpG Island Predictor (CIP) v1.0.0
+CpG Island Predictor (CIP) v1.0.1
 Copyright: AGPL-3.0-or-later (see LICENSE file)
+See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
 
 Enter path to FASTA file or /quit to close: sequences.fasta
 ```

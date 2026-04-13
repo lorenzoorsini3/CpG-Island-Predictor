@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 print(f"CpG Island Predictor (CIP) v{VERSION}")
 
 import sys
@@ -31,6 +31,17 @@ from colorama import Fore, deinit, init
 
 from modules.features_extractor import FEATURES_ORDER, extract_features
 
+_MODEL_FILE = "./config/model.pkl"
+_FILE_ERRORS = {
+    FileNotFoundError: lambda e, path: f"FileNotFoundError - File '{path}' not found.",
+    IsADirectoryError: lambda e, path: f"IsADirectoryError - '{path}' is a directory, not a file.",
+    PermissionError: lambda e, path: f"PermissionError - '{path}': Permission denied.",
+}
+
+
+def _handle_io_error(e: Exception, path: str) -> str:
+    handler = _FILE_ERRORS.get(type(e))
+    return handler(e, path) if handler else f"ERROR - Error reading file '{path}': {e}"
 
 def predict_from_fasta(model, fasta_path: str) -> None:
     """Run predictions on all sequences in a FASTA file.
@@ -42,7 +53,12 @@ def predict_from_fasta(model, fasta_path: str) -> None:
         model: A fitted scikit-learn estimator with a predict() method.
         fasta_path: Path to the input FASTA file.
     """
-    records = list(SeqIO.parse(fasta_path, "fasta"))
+    try:
+        records = list(SeqIO.parse(fasta_path, "fasta"))
+    except Exception as e:
+        print(_handle_io_error(e, fasta_path))
+        return
+    
     if not records:
         print("No sequences found in the provided FASTA file.")
         return
@@ -75,7 +91,11 @@ if __name__ == "__main__":
     print(Fore.LIGHTBLACK_EX + "Copyright: AGPL-3.0-or-later (see LICENSE file)")
     print("See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code" + Fore.RESET)
 
-    model = joblib.load("./config/model.pkl")
+    try:
+        model = joblib.load(_MODEL_FILE)
+    except Exception as e:
+        print(_handle_io_error(e, _MODEL_FILE))
+        _exit(1)
 
     while True:
         try:
