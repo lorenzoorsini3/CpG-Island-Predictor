@@ -23,11 +23,13 @@ VERSION = "1.0.1"
 print(f"CpG Island Predictor (CIP) v{VERSION}")
 
 import sys
+import os
 
 import joblib
 import pandas as pd
 from Bio import SeqIO
 from colorama import Fore, deinit, init
+from datetime import datetime
 
 from modules.features_extractor import FEATURES_ORDER, extract_features
 
@@ -63,13 +65,35 @@ def predict_from_fasta(model, fasta_path: str) -> None:
         print("No sequences found in the provided FASTA file.")
         return
 
-    seq_ids = [rec.id for rec in records]
-    rows = [[extract_features(str(rec.seq))[k] for k in FEATURES_ORDER] for rec in records]
+    seq_ids = []
+    rows = []
+
+    for rec in records:
+        seq = str(rec.seq).upper()
+
+        if not set(seq).issubset({"A", "C", "G", "T", "N"}):
+            print(f"Warning: sequence '{rec.id}' contains invalid characters. Please, use only A, C, T, G or N.")
+            continue
+
+        feats = extract_features(seq)
+
+        seq_ids.append(rec.id)
+        rows.append([feats[k] for k in FEATURES_ORDER])
 
     X = pd.DataFrame(rows, columns=FEATURES_ORDER)
 
     y_pred = model.predict(X)
     y_proba = model.predict_proba(X)[:, 1] if hasattr(model, "predict_proba") else None
+
+    os.makedirs("outs", exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = f"outs/{timestamp}.csv"
+
+    pd.DataFrame({
+        "id": seq_ids,
+        "prediction": y_pred,
+        "probability": y_proba
+    }).to_csv(output_path, index=False, sep=",")
 
     for i, seq_id in enumerate(seq_ids):
         prob_str = f"{y_proba[i]:.4f}" if y_proba is not None else "N/A"
