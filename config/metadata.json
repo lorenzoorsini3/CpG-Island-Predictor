@@ -1,0 +1,46 @@
+{
+  "architecture_version": "v3.0.0",
+  "model_type": "StackingClassifier (RandomForest + GradientBoosting = LogisticRegression)",
+  "license": "AGPL-3.0-or-later",
+  "training_species": [
+    "human (hg38)",
+    "mouse (mm39)"
+  ],
+  "test_species": [
+    "dog (canFam6)"
+  ],
+  "n_features": 24,
+  "feature_names": [
+    "length",
+    "gc_power",
+    "gc_peak",
+    "lz_complexity",
+    "c_content",
+    "g_content",
+    "a_content",
+    "t_content",
+    "aa_content",
+    "ag_content",
+    "ac_content",
+    "tg_content",
+    "tc_content",
+    "tt_content",
+    "ca_content",
+    "ct_content",
+    "cc_content",
+    "ga_content",
+    "gt_content",
+    "gg_content",
+    "pos_upstream",
+    "pos_gene_body",
+    "pos_downstream",
+    "pos_intergenic"
+  ],
+  "position_classes": [
+    "upstream",
+    "gene_body",
+    "downstream",
+    "intergenic"
+  ],
+  "training_date": "2026-05-10T19:49:52.697903"
+}
