@@ -19,10 +19,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-VERSION = "1.0.1"
+VERSION = "2.0.0"
 print(f"CpG Island Predictor (CIP) v{VERSION}")
 
+import json
 import sys
+import os
+import re
+from datetime import datetime
 
 import joblib
 import pandas as pd
@@ -31,11 +35,18 @@ from colorama import Fore, deinit, init
 
 from modules.features_extractor import FEATURES_ORDER, extract_features
 
-_MODEL_FILE = "./config/model.pkl"
+_MODEL_FILE    = "./config/model.pkl"
+_METADATA_FILE = "./config/metadata.json"
+
+# One-hot column names and valid position labels, used as fallback if
+# metadata.json is not available.
+_ONE_HOT_COLS      = ['pos_upstream', 'pos_gene_body', 'pos_downstream', 'pos_intergenic']
+_POSITION_CLASSES  = ['upstream', 'gene_body', 'downstream', 'intergenic']
+
 _FILE_ERRORS = {
     FileNotFoundError: lambda e, path: f"FileNotFoundError - File '{path}' not found.",
     IsADirectoryError: lambda e, path: f"IsADirectoryError - '{path}' is a directory, not a file.",
-    PermissionError: lambda e, path: f"PermissionError - '{path}': Permission denied.",
+    PermissionError:   lambda e, path: f"PermissionError - '{path}': Permission denied.",
 }
 
 
@@ -43,41 +54,180 @@ def _handle_io_error(e: Exception, path: str) -> str:
     handler = _FILE_ERRORS.get(type(e))
     return handler(e, path) if handler else f"ERROR - Error reading file '{path}': {e}"
 
-def predict_from_fasta(model, fasta_path: str) -> None:
-    """Run predictions on all sequences in a FASTA file.
 
-    For each sequence, extracts features, runs the model, and prints
-    the prediction along with the CpG island probability (if available).
+def _load_metadata() -> dict | None:
+    """Load metadata.json from config, return None if not found."""
+    try:
+        with open(_METADATA_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        print(f"Warning: could not read metadata.json: {e}")
+        return None
+
+
+def _parse_position_from_header(header: str, valid_positions: list[str]) -> str | None:
+    """
+    Try to extract a genomic position label from a FASTA sequence header.
+
+    Looks for any of the valid position labels as a standalone word
+    (case-insensitive) anywhere in the header string.
 
     Args:
-        model: A fitted scikit-learn estimator with a predict() method.
+        header: The full FASTA record description (rec.description).
+        valid_positions: List of accepted position labels.
+
+    Returns:
+        The matched position label (lowercase) or None if not found.
+    """
+    header_lower = header.lower()
+    for pos in valid_positions:
+        # Match as a whole word to avoid partial matches
+        if re.search(rf'\b{re.escape(pos)}\b', header_lower):
+            return pos
+    return None
+
+
+def _build_feature_row(base_feats: dict, position: str, position_classes: list[str]) -> dict:
+    """
+    Combine base sequence features with a one-hot encoded genomic position.
+
+    Args:
+        base_feats: Dict of numerical features from extract_features().
+        position: One of the valid genomic position labels.
+        position_classes: Ordered list of all position labels.
+
+    Returns:
+        Dict with all numerical features + 4 one-hot pos_* columns.
+    """
+    row = {k: base_feats[k] for k in FEATURES_ORDER}
+    for cls in position_classes:
+        col = f"pos_{cls}"
+        row[col] = 1 if cls == position else 0
+    return row
+
+
+def _full_feature_columns(position_classes: list[str]) -> list[str]:
+    """Return the ordered list of all 24 feature column names."""
+    return FEATURES_ORDER + [f"pos_{cls}" for cls in position_classes]
+
+
+def predict_from_fasta(model, fasta_path: str, position_classes: list[str]) -> None:
+    """
+    Run predictions on all sequences in a FASTA file.
+
+    For each sequence:
+    - If the FASTA header contains a recognised genomic position label,
+      that position is used directly and a single prediction is made.
+    - Otherwise, inference is run 4 times (once per position class) and
+      the result with the highest CpG island probability is selected for
+      terminal output; all 4 results are written to the CSV.
+
+    Args:
+        model: A fitted scikit-learn estimator.
         fasta_path: Path to the input FASTA file.
+        position_classes: Ordered list of valid genomic position labels.
     """
     try:
         records = list(SeqIO.parse(fasta_path, "fasta"))
     except Exception as e:
         print(_handle_io_error(e, fasta_path))
         return
-    
+
     if not records:
         print("No sequences found in the provided FASTA file.")
         return
 
-    seq_ids = [rec.id for rec in records]
-    rows = [[extract_features(str(rec.seq))[k] for k in FEATURES_ORDER] for rec in records]
+    all_columns  = _full_feature_columns(position_classes)
+    output_rows  = []   # all rows for the CSV (may be 4x per sequence)
+    print_items  = []   # one item per sequence for terminal output
 
-    X = pd.DataFrame(rows, columns=FEATURES_ORDER)
+    for rec in records:
+        seq = str(rec.seq).upper()
 
-    y_pred = model.predict(X)
-    y_proba = model.predict_proba(X)[:, 1] if hasattr(model, "predict_proba") else None
+        if not set(seq).issubset({"A", "C", "G", "T", "N"}):
+            print(
+                f"Warning: sequence '{rec.id}' contains invalid characters. "
+                "Please use only A, C, T, G or N."
+            )
+            continue
 
-    for i, seq_id in enumerate(seq_ids):
-        prob_str = f"{y_proba[i]:.4f}" if y_proba is not None else "N/A"
-        if y_pred[i] == 1:
-            label = f"{Fore.LIGHTGREEN_EX}Sequence '{seq_id}' is a CpG island.{Fore.RESET}"
+        base_feats = extract_features(seq)
+        known_pos  = _parse_position_from_header(rec.description, position_classes)
+
+        if known_pos is not None:
+            # ── Single prediction: position is known from the header ──────────
+            row   = _build_feature_row(base_feats, known_pos, position_classes)
+            X     = pd.DataFrame([row], columns=all_columns)
+            pred  = int(model.predict(X)[0])
+            proba = float(model.predict_proba(X)[0, 1]) if hasattr(model, "predict_proba") else None
+
+            output_rows.append({
+                "id":         rec.id,
+                "position":   known_pos,
+                "prediction": pred,
+                "probability": f"{proba:.4f}" if proba is not None else "N/A",
+            })
+            print_items.append({
+                "id":          rec.id,
+                "pred":        pred,
+                "proba":       proba,
+                "position":    None,   # None = position was known, no need to annotate
+                "inferred":    False,
+            })
+
         else:
-            label = f"{Fore.LIGHTRED_EX}Sequence '{seq_id}' is not a CpG island.{Fore.RESET}"
-        print(f"- {label}\n\tProbability of CpG island: {prob_str}")
+            # ── Multi-prediction: run inference for all 4 positions ───────────
+            results = []
+            for pos in position_classes:
+                row   = _build_feature_row(base_feats, pos, position_classes)
+                X     = pd.DataFrame([row], columns=all_columns)
+                pred  = int(model.predict(X)[0])
+                proba = float(model.predict_proba(X)[0, 1]) if hasattr(model, "predict_proba") else None
+
+                output_rows.append({
+                    "id":          rec.id,
+                    "position":    pos,
+                    "prediction":  pred,
+                    "probability": f"{proba:.4f}" if proba is not None else "N/A",
+                })
+                results.append({"pred": pred, "proba": proba, "position": pos})
+
+            # Pick the result with the highest CpG island probability for terminal
+            best = max(results, key=lambda r: r["proba"] if r["proba"] is not None else r["pred"])
+            print_items.append({
+                "id":       rec.id,
+                "pred":     best["pred"],
+                "proba":    best["proba"],
+                "position": best["position"],
+                "inferred": True,
+            })
+
+    # ── Write CSV ─────────────────────────────────────────────────────────────
+    os.makedirs("outs", exist_ok=True)
+    timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = f"outs/{timestamp}.csv"
+    pd.DataFrame(output_rows).to_csv(output_path, index=False, sep=",")
+
+    # ── Terminal output ───────────────────────────────────────────────────────
+    for item in print_items:
+        prob_str = f"{item['proba']:.4f}" if item['proba'] is not None else "N/A"
+
+        prob_note = f"Probability of CpG island: {prob_str}"
+
+        if item["pred"] == 1:
+            label = f"{Fore.LIGHTGREEN_EX}Sequence '{item['id']}' is a CpG island.{Fore.RESET}"
+        else:
+            label = f"{Fore.LIGHTRED_EX}Sequence '{item['id']}' is not a CpG island.{Fore.RESET}"
+
+        pos_note = ""
+        if item["inferred"]:
+            pos_note = f"Best position: {item['position']}"
+
+        print(f"- {label}\n\t{prob_note}\n\t{pos_note}")
+
+    print(f"\n    Results saved to: {output_path}")
 
 
 def _exit(code: int = 0) -> None:
@@ -91,12 +241,42 @@ if __name__ == "__main__":
     print(Fore.LIGHTBLACK_EX + "Copyright: AGPL-3.0-or-later (see LICENSE file)")
     print("See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code" + Fore.RESET)
 
+    # ── Load metadata ─────────────────────────────────────────────────────────
+    metadata = _load_metadata()
+    if metadata:
+        position_classes = metadata.get("position_classes", _POSITION_CLASSES)
+        arch_version     = metadata.get("architecture_version", "unknown")
+        n_features       = metadata.get("n_features", None)
+        train_species    = metadata.get("training_species", [])
+        test_species     = metadata.get("test_species", [])
+        print(f"    Model architecture : {arch_version}")
+        if train_species:
+            print(f"    Trained on         : {', '.join(train_species)}")
+        if test_species:
+            print(f"    Evaluated on       : {', '.join(test_species)}")
+    else:
+        print("    Warning: metadata.json not found, using built-in defaults.")
+        position_classes = _POSITION_CLASSES
+        n_features       = None
+
+    # ── Load model ────────────────────────────────────────────────────────────
     try:
         model = joblib.load(_MODEL_FILE)
     except Exception as e:
         print(_handle_io_error(e, _MODEL_FILE))
         _exit(1)
 
+    # Sanity check: verify expected feature count matches metadata
+    if n_features is not None:
+        expected = len(FEATURES_ORDER) + len(position_classes)
+        if expected != n_features:
+            print(
+                f"Warning: metadata expects {n_features} features but "
+                f"this version of CIP would build {expected}. "
+                "Results may be unreliable."
+            )
+
+    # ── Main loop ─────────────────────────────────────────────────────────────
     while True:
         try:
             fasta_path = input("\nEnter path to FASTA file or /quit to close: ").strip()
@@ -107,4 +287,4 @@ if __name__ == "__main__":
         if fasta_path == "/quit":
             _exit()
         else:
-            predict_from_fasta(model, fasta_path)
+            predict_from_fasta(model, fasta_path, position_classes)
