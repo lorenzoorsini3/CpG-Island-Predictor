@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 print(f"CpG Island Predictor (CIP) v{VERSION}")
 
 import json
@@ -40,7 +40,10 @@ _METADATA_FILE = "./config/metadata.json"
 
 # One-hot column names and valid position labels, used as fallback if
 # metadata.json is not available.
-_ONE_HOT_COLS      = ['pos_upstream', 'pos_gene_body', 'pos_downstream', 'pos_intergenic']
+# After ablation (v2.1.0) only pos_intergenic is retained as a feature;
+# the other three positions are still used for multi-context inference
+# but their one-hot columns are not passed to the model.
+_ONE_HOT_COLS      = ['pos_intergenic']
 _POSITION_CLASSES  = ['upstream', 'gene_body', 'downstream', 'intergenic']
 
 _FILE_ERRORS = {
@@ -91,7 +94,13 @@ def _parse_position_from_header(header: str, valid_positions: list[str]) -> str 
 
 def _build_feature_row(base_feats: dict, position: str, position_classes: list[str]) -> dict:
     """
-    Combine base sequence features with a one-hot encoded genomic position.
+    Combine base sequence features with the one-hot encoded genomic position.
+
+    Only the position columns that were retained after feature ablation are
+    included (currently only ``pos_intergenic``).  The full list of position
+    classes is still used for multi-context inference — each position produces
+    a distinct row — but only the ``pos_intergenic`` flag is passed to the
+    model as a numeric feature.
 
     Args:
         base_feats: Dict of numerical features from extract_features().
@@ -99,18 +108,17 @@ def _build_feature_row(base_feats: dict, position: str, position_classes: list[s
         position_classes: Ordered list of all position labels.
 
     Returns:
-        Dict with all numerical features + 4 one-hot pos_* columns.
+        Dict with all numerical features + the retained one-hot pos_* columns.
     """
     row = {k: base_feats[k] for k in FEATURES_ORDER}
-    for cls in position_classes:
-        col = f"pos_{cls}"
-        row[col] = 1 if cls == position else 0
+    # Only pos_intergenic survived ablation; the other three were dropped.
+    row["pos_intergenic"] = 1 if position == "intergenic" else 0
     return row
 
 
 def _full_feature_columns(position_classes: list[str]) -> list[str]:
-    """Return the ordered list of all 24 feature column names."""
-    return FEATURES_ORDER + [f"pos_{cls}" for cls in position_classes]
+    """Return the ordered list of all feature column names passed to the model."""
+    return FEATURES_ORDER + ["pos_intergenic"]
 
 
 def predict_from_fasta(model, fasta_path: str, position_classes: list[str]) -> None:

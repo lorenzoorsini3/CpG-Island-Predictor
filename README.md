@@ -32,7 +32,7 @@ Performance was evaluated on a held-out test set derived exclusively from dog (c
 
 A shuffle test confirms the model is not making random predictions (~50% accuracy on permuted labels).
 
-Unlike traditional CpG island predictors, CIP does not rely on GC content or observed/expected CpG ratio. Instead, it uses alternative sequence-based features including GC periodicity (via FFT), Lempel-Ziv complexity, and mono/di-nucleotide counts. See `modules/features_extractor.py` and `config/metadata.json` for the full feature list.
+Unlike traditional CpG island predictors, CIP does not rely on GC content or observed/expected CpG ratio. Instead, it uses alternative sequence-based features such as mono/di-nucleotide counts. See `modules/features_extractor.py` and `config/metadata.json` for the full feature list.
 
 ## Installation
 
@@ -47,10 +47,10 @@ pip install -r requirements.txt
 Run `CIP.py` from the command line (or by double-clicking it). When prompted, provide the path to a FASTA file containing the sequences to analyze:
 
 ```
-CpG Island Predictor (CIP) v2.0.0
+CpG Island Predictor (CIP) v2.1.0
 Copyright: AGPL-3.0-or-later (see LICENSE file)
 See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
-    Model architecture : v3.0.0
+    Model architecture : v3.1.0
     Trained on         : human (hg38), mouse (mm39)
     Evaluated on       : dog (canFam6)
 
