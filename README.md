@@ -24,11 +24,11 @@ Performance was evaluated on a held-out test set derived exclusively from dog (c
 
 | Metric    | Validation (dog) | Test (dog) | Cross-val (human+mouse) |
 |-----------|-----------------|------------|------------------------|
-| Accuracy  | 96.49%          | 96.55%     | 97.69%                 |
-| Precision | 95.78%          | 95.88%     | 97.20%                 |
-| Recall    | 97.28%          | 97.27%     | 98.20%                 |
-| F1        | 96.52%          | 96.57%     | 97.70%                 |
-| ROC-AUC   | 99.33%          | 99.36%     | 99.67%                 |
+| Accuracy  | 97.45%          | 97.47%     | 98.14%                 |
+| Precision | 96.09%          | 96.26%     | 97.70%                 |
+| Recall    | 98.70%          | 98.78%     | 98.60%                 |
+| F1        | 97.38%          | 97.50%     | 98.15%                 |
+| ROC-AUC   | 99.53%          | 99.55%     | 99.72%                 |
 
 A shuffle test confirms the model is not making random predictions (~50% accuracy on permuted labels).
 
