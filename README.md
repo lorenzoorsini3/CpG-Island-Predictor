@@ -47,7 +47,7 @@ pip install -r requirements.txt
 Run `CIP.py` from the command line (or by double-clicking it). When prompted, provide the path to a FASTA file containing the sequences to analyze:
 
 ```
-CpG Island Predictor (CIP) v2.1.0
+CpG Island Predictor (CIP) v2.2.0
 Copyright: AGPL-3.0-or-later (see LICENSE file)
 See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
     Model architecture : v3.1.0
@@ -73,7 +73,7 @@ CIP will print a prediction and probability for each sequence:
 
 When the genomic position is not specified in the FASTA header (see [Genomic Position](#genomic-position)), CIP runs inference for all four positions and shows the result with the highest CpG island probability, annotated with `Best position: ...`. All four results are always written to the output CSV.
 
-Results are saved to `outs/<timestamp>.csv`. Type `/quit` or press `Ctrl+C` to exit.
+Results are saved to `outs/<timestamp>.csv`. Using --bed or --gff3 flags along with the sequence(s) file the output will be saved also to `outs/<timestamp>.bed` or `outs/<timestamp>.gff3`. Type `/quit` or press `Ctrl+C` to exit.
 
 ## Genomic Position
 
