@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 print(f"CpG Island Predictor (CIP) v{VERSION}")
 
 import json
@@ -438,7 +438,7 @@ if __name__ == "__main__":
 
     # Sanity check: verify expected feature count matches metadata
     if n_features is not None:
-        expected = len(FEATURES_ORDER) + len(position_classes)
+        expected = len(FEATURES_ORDER) + len(_ONE_HOT_COLS)
         if expected != n_features:
             print(
                 f"Warning: metadata expects {n_features} features but "
