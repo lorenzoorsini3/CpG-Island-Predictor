@@ -24,15 +24,15 @@ Performance was evaluated on a held-out test set derived exclusively from dog (c
 
 | Metric    | Validation (dog) | Test (dog) | Cross-val (human+mouse) |
 |-----------|-----------------|------------|------------------------|
-| Accuracy  | 96.49%          | 96.55%     | 97.69%                 |
-| Precision | 95.78%          | 95.88%     | 97.20%                 |
-| Recall    | 97.28%          | 97.27%     | 98.20%                 |
-| F1        | 96.52%          | 96.57%     | 97.70%                 |
-| ROC-AUC   | 99.33%          | 99.36%     | 99.67%                 |
+| Accuracy  | 97.45%          | 97.47%     | 98.14%                 |
+| Precision | 96.09%          | 96.26%     | 97.70%                 |
+| Recall    | 98.70%          | 98.78%     | 98.60%                 |
+| F1        | 97.38%          | 97.50%     | 98.15%                 |
+| ROC-AUC   | 99.53%          | 99.55%     | 99.72%                 |
 
 A shuffle test confirms the model is not making random predictions (~50% accuracy on permuted labels).
 
-Unlike traditional CpG island predictors, CIP does not rely on GC content or observed/expected CpG ratio. Instead, it uses alternative sequence-based features including GC periodicity (via FFT), Lempel-Ziv complexity, and mono/di-nucleotide counts. See `modules/features_extractor.py` and `config/metadata.json` for the full feature list.
+Unlike traditional CpG island predictors, CIP does not rely on GC content or observed/expected CpG ratio. Instead, it uses alternative sequence-based features such as mono/di-nucleotide counts. See `modules/features_extractor.py` and `config/metadata.json` for the full feature list.
 
 ## Installation
 
@@ -47,10 +47,10 @@ pip install -r requirements.txt
 Run `CIP.py` from the command line (or by double-clicking it). When prompted, provide the path to a FASTA file containing the sequences to analyze:
 
 ```
-CpG Island Predictor (CIP) v2.0.0
+CpG Island Predictor (CIP) v2.2.1
 Copyright: AGPL-3.0-or-later (see LICENSE file)
 See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
-    Model architecture : v3.0.0
+    Model architecture : v3.1.0
     Trained on         : human (hg38), mouse (mm39)
     Evaluated on       : dog (canFam6)
 
@@ -73,7 +73,7 @@ CIP will print a prediction and probability for each sequence:
 
 When the genomic position is not specified in the FASTA header (see [Genomic Position](#genomic-position)), CIP runs inference for all four positions and shows the result with the highest CpG island probability, annotated with `Best position: ...`. All four results are always written to the output CSV.
 
-Results are saved to `outs/<timestamp>.csv`. Type `/quit` or press `Ctrl+C` to exit.
+Results are saved to `outs/<timestamp>.csv`. Using --bed or --gff3 flags along with the sequence(s) file the output will be saved also to `outs/<timestamp>.bed` or `outs/<timestamp>.gff3`. Type `/quit` or press `Ctrl+C` to exit.
 
 ## Genomic Position
 
