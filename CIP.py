@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-VERSION = "2.2.1"
+VERSION = "2.2.2"
 print(f"CpG Island Predictor (CIP) v{VERSION}")
 
 import json
@@ -412,8 +412,8 @@ if __name__ == "__main__":
         print("    Note: install 'tqdm' for progress bars (pip install tqdm).")
 
     # ── Load metadata ─────────────────────────────────────────────────────────
-    metadata = _load_metadata()
-    if metadata:
+    try:
+        metadata = _load_metadata()
         position_classes = metadata.get("position_classes", _POSITION_CLASSES)
         arch_version     = metadata.get("architecture_version", "unknown")
         n_features       = metadata.get("n_features", None)
@@ -424,8 +424,9 @@ if __name__ == "__main__":
             print(f"    Trained on         : {', '.join(train_species)}")
         if test_species:
             print(f"    Evaluated on       : {', '.join(test_species)}")
-    else:
-        print("    Warning: metadata.json not found, using built-in defaults.")
+    except Exception as e:
+        print(_handle_io_error(e, _METADATA_FILE))
+        print("Warning: metadata not found, using built-in defaults.")
         position_classes = _POSITION_CLASSES
         n_features       = None
 
