@@ -1,8 +1,8 @@
 {
   "architecture_version": "v3.1.0",
-  "min_script_version": "2.1.0",
-  "max_script_version": "2.2.3",
   "model_type": "StackingClassifier (RandomForest + GradientBoosting = LogisticRegression)",
+  "min_script_version": "v2.1.0",
+  "max_script_version": "v2.2.3",
   "license": "AGPL-3.0-or-later",
   "training_species": [
     "human (hg38)",
@@ -31,5 +31,5 @@
     "downstream",
     "intergenic"
   ],
-  "training_date": "2026-05-14T12:27:15.640047"
+  "training_date": "2026-05-17T16:38:59.915549"
 }

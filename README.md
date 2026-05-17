@@ -24,7 +24,7 @@ Performance was evaluated on a held-out test set derived exclusively from dog (c
 
 | Metric    | Validation (dog) | Test (dog) | Cross-val (human+mouse) |
 |-----------|-----------------|------------|------------------------|
-| Accuracy  | 97.45%          | 97.47%     | 98.14%                 |
+| Accuracy  | 97.34%          | 97.47%     | 98.14%                 |
 | Precision | 96.09%          | 96.26%     | 97.70%                 |
 | Recall    | 98.70%          | 98.78%     | 98.60%                 |
 | F1        | 97.38%          | 97.50%     | 98.15%                 |
