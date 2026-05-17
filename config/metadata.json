@@ -1,5 +1,7 @@
 {
   "architecture_version": "v3.1.0",
+  "min_script_version": "2.1.0",
+  "max_script_version": "2.2.3",
   "model_type": "StackingClassifier (RandomForest + GradientBoosting = LogisticRegression)",
   "license": "AGPL-3.0-or-later",
   "training_species": [

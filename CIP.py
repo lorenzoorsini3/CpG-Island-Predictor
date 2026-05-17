@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-VERSION = "2.2.1"
+VERSION = "2.2.3"
 print(f"CpG Island Predictor (CIP) v{VERSION}")
 
 import json
@@ -397,6 +397,54 @@ def predict_from_fasta(
         print(f"      {path}")
 
 
+def _parse_version(v: str) -> tuple[int, ...]:
+    """Parse a 'X.Y.Z' version string into a comparable tuple of ints."""
+    try:
+        return tuple(int(x) for x in v.lstrip("v").split("."))
+    except ValueError:
+        return (0,)
+
+
+def _check_version_compatibility(metadata: dict) -> None:
+    """
+    Compare the running script version against the model's declared
+    compatibility range stored in metadata.json.
+
+    Fields read from metadata (both optional):
+        min_script_version : str  – oldest script version that works with this model.
+        max_script_version : str  – newest script version tested with this model.
+
+    Behaviour:
+        - script < min  → fatal error (model likely requires features this script
+                          doesn't provide); exits with code 1.
+        - script > max  → warning only (script is newer than what was tested;
+                          may still work).
+    """
+    script_ver = _parse_version(VERSION)
+
+    min_ver_str = metadata.get("min_script_version")
+    max_ver_str = metadata.get("max_script_version")
+
+    if min_ver_str:
+        min_ver = _parse_version(min_ver_str)
+        if script_ver < min_ver:
+            print(
+                f"COMPATIBILITY ERROR - this script is v{VERSION} but the "
+                f"loaded model requires at least script v{min_ver_str}. "
+                f"Please update CIP.py."
+            )
+            _exit(1)
+
+    if max_ver_str:
+        max_ver = _parse_version(max_ver_str)
+        if script_ver > max_ver:
+            print(
+                f"COMPATIBILITY WARNING - this script is v{VERSION} but the "
+                f"loaded model was tested up to script v{max_ver_str}. "
+                f"Results may differ from expected."
+            )
+
+
 def _exit(code: int = 0) -> None:
     """Clean up colorama and exit the program."""
     deinit()
@@ -412,8 +460,8 @@ if __name__ == "__main__":
         print("    Note: install 'tqdm' for progress bars (pip install tqdm).")
 
     # ── Load metadata ─────────────────────────────────────────────────────────
-    metadata = _load_metadata()
-    if metadata:
+    try:
+        metadata = _load_metadata()
         position_classes = metadata.get("position_classes", _POSITION_CLASSES)
         arch_version     = metadata.get("architecture_version", "unknown")
         n_features       = metadata.get("n_features", None)
@@ -424,10 +472,15 @@ if __name__ == "__main__":
             print(f"    Trained on         : {', '.join(train_species)}")
         if test_species:
             print(f"    Evaluated on       : {', '.join(test_species)}")
-    else:
-        print("    Warning: metadata.json not found, using built-in defaults.")
+    except Exception as e:
+        print(_handle_io_error(e, _METADATA_FILE))
+        print("Warning: metadata not found, using built-in defaults.")
         position_classes = _POSITION_CLASSES
         n_features       = None
+
+    # ── Version compatibility check ───────────────────────────────────────────
+    if metadata is not None:
+        _check_version_compatibility(metadata)
 
     # ── Load model ────────────────────────────────────────────────────────────
     try:
