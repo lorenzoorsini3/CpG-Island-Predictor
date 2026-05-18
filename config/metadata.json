@@ -1,8 +1,8 @@
 {
-  "architecture_version": "v3.1.0",
+  "architecture_version": "v3.2.0",
   "model_type": "StackingClassifier (RandomForest + GradientBoosting = LogisticRegression)",
-  "min_script_version": "v2.1.0",
-  "max_script_version": "v2.2.3",
+  "min_script_version": "v3.0.0",
+  "max_script_version": "v3.0.0",
   "license": "AGPL-3.0-or-later",
   "training_species": [
     "human (hg38)",
@@ -11,25 +11,48 @@
   "test_species": [
     "dog (canFam6)"
   ],
-  "n_features": 11,
+  "n_features": 40,
   "feature_names": [
     "c_content",
     "g_content",
-    "a_content",
-    "t_content",
     "aa_content",
     "ag_content",
     "tg_content",
-    "tt_content",
     "ca_content",
     "ct_content",
-    "pos_intergenic"
+    "aca_content",
+    "agc_content",
+    "agg_content",
+    "agt_content",
+    "ata_content",
+    "atg_content",
+    "cag_content",
+    "cat_content",
+    "cca_content",
+    "ccc_content",
+    "cct_content",
+    "cta_content",
+    "ctg_content",
+    "gac_content",
+    "gag_content",
+    "gat_content",
+    "gcc_content",
+    "gct_content",
+    "gga_content",
+    "ggc_content",
+    "ggg_content",
+    "ggt_content",
+    "gta_content",
+    "gtc_content",
+    "tac_content",
+    "tat_content",
+    "tca_content",
+    "tcc_content",
+    "tct_content",
+    "tga_content",
+    "tgc_content",
+    "tgt_content",
+    "ttg_content"
   ],
-  "position_classes": [
-    "upstream",
-    "gene_body",
-    "downstream",
-    "intergenic"
-  ],
-  "training_date": "2026-05-17T16:38:59.915549"
+  "training_date": "2026-05-18T17:37:17.714108"
 }

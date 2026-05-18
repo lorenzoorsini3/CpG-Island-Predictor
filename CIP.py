@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-VERSION = "2.2.3"
+VERSION = "3.0.0"
 print(f"CpG Island Predictor (CIP) v{VERSION}")
 
 import json
@@ -43,14 +43,6 @@ from modules.features_extractor import FEATURES_ORDER, extract_features
 
 _MODEL_FILE    = "./config/model.pkl"
 _METADATA_FILE = "./config/metadata.json"
-
-# One-hot column names and valid position labels, used as fallback if
-# metadata.json is not available.
-# After ablation (v2.1.0) only pos_intergenic is retained as a feature;
-# the other three positions are still used for multi-context inference
-# but their one-hot columns are not passed to the model.
-_ONE_HOT_COLS      = ['pos_intergenic']
-_POSITION_CLASSES  = ['upstream', 'gene_body', 'downstream', 'intergenic']
 
 _FILE_ERRORS = {
     FileNotFoundError: lambda e, path: f"FileNotFoundError - File '{path}' not found.",
@@ -79,27 +71,6 @@ def _load_metadata() -> dict | None:
         return None
 
 
-def _parse_position_from_header(header: str, valid_positions: list[str]) -> str | None:
-    """
-    Try to extract a genomic position label from a FASTA sequence header.
-
-    Looks for any of the valid position labels as a standalone word
-    (case-insensitive) anywhere in the header string.
-
-    Args:
-        header: The full FASTA record description (rec.description).
-        valid_positions: List of accepted position labels.
-
-    Returns:
-        The matched position label (lowercase) or None if not found.
-    """
-    header_lower = header.lower()
-    for pos in valid_positions:
-        if re.search(rf'\b{re.escape(pos)}\b', header_lower):
-            return pos
-    return None
-
-
 def _parse_coords_from_header(header: str) -> tuple[str, int, int] | None:
     """
     Try to extract genomic coordinates from a FASTA sequence header.
@@ -122,31 +93,6 @@ def _parse_coords_from_header(header: str) -> tuple[str, int, int] | None:
         end   = int(m.group(3).replace(',', ''))
         return chrom, start, end
     return None
-
-
-def _build_feature_row(base_feats: dict, position: str, position_classes: list[str]) -> dict:
-    """
-    Combine base sequence features with the one-hot encoded genomic position.
-
-    Only the position columns that were retained after feature ablation are
-    included (currently only ``pos_intergenic``).
-
-    Args:
-        base_feats: Dict of numerical features from extract_features().
-        position: One of the valid genomic position labels.
-        position_classes: Ordered list of all position labels.
-
-    Returns:
-        Dict with all numerical features + the retained one-hot pos_* columns.
-    """
-    row = {k: base_feats[k] for k in FEATURES_ORDER}
-    row["pos_intergenic"] = 1 if position == "intergenic" else 0
-    return row
-
-
-def _full_feature_columns(position_classes: list[str]) -> list[str]:
-    """Return the ordered list of all feature column names passed to the model."""
-    return FEATURES_ORDER + ["pos_intergenic"]
 
 
 # ── Extra output writers ──────────────────────────────────────────────────────
@@ -192,8 +138,8 @@ def _write_gff3(print_items: list[dict], output_path: str) -> None:
 
     Coordinates follow GFF3 convention (1-based, closed intervals).
     The feature type is ``CpG_island`` for positive predictions and
-    ``non_CpG_island`` for negative ones.  Probability, prediction flag,
-    and inferred position context are stored in the attributes column.
+    ``non_CpG_island`` for negative ones.  Probability and prediction flag
+    are stored in the attributes column.
 
     Args:
         print_items: One dict per sequence, as built by predict_from_fasta.
@@ -210,14 +156,10 @@ def _write_gff3(print_items: list[dict], output_path: str) -> None:
         gff_end    = item.get("coord_end", item.get("seq_len", 0))
         score_str  = f"{item['proba']:.4f}" if item["proba"] is not None else "."
         feat_type  = "CpG_island" if item["pred"] == 1 else "non_CpG_island"
-        pos_ctx    = item.get("position") or "known"
-        inferred   = "true" if item.get("inferred") else "false"
         attrs = (
             f"ID={item['id']};"
             f"prediction={item['pred']};"
-            f"probability={score_str};"
-            f"position_context={pos_ctx};"
-            f"position_inferred={inferred}"
+            f"probability={score_str}"
         )
         lines.append(
             f"{chrom}\tCIP\t{feat_type}\t{gff_start}\t{gff_end}\t"
@@ -232,28 +174,22 @@ def _write_gff3(print_items: list[dict], output_path: str) -> None:
 def predict_from_fasta(
     model,
     fasta_path: str,
-    position_classes: list[str],
     output_formats: set[str] | None = None,
 ) -> None:
     """
     Run predictions on all sequences in a FASTA file.
 
-    For each sequence:
-    - If the FASTA header contains a recognised genomic position label,
-      that position is used directly and a single prediction is made.
-    - Otherwise, inference is run 4 times (once per position class) and
-      the result with the highest CpG island probability is selected for
-      terminal output; all 4 results are written to the CSV.
+    The model is position-independent: a single prediction is made per
+    sequence using only sequence-based features (mono-, di- and
+    trinucleotide counts).
 
     If ``output_formats`` contains ``"bed"`` and/or ``"gff3"``, additional
     files are written alongside the CSV (same timestamp, different extension).
-    Each extra-format file contains one row per sequence (best result only).
 
     Args:
-        model:            A fitted scikit-learn estimator.
-        fasta_path:       Path to the input FASTA file.
-        position_classes: Ordered list of valid genomic position labels.
-        output_formats:   Set of extra output formats (``"bed"``, ``"gff3"``).
+        model:          A fitted scikit-learn estimator.
+        fasta_path:     Path to the input FASTA file.
+        output_formats: Set of extra output formats (``"bed"``, ``"gff3"``).
     """
     if output_formats is None:
         output_formats = set()
@@ -268,9 +204,8 @@ def predict_from_fasta(
         print("No sequences found in the provided FASTA file.")
         return
 
-    all_columns  = _full_feature_columns(position_classes)
-    output_rows  = []   # all rows for the CSV (may be 4× per sequence)
-    print_items  = []   # one item per sequence for terminal output + extra formats
+    output_rows = []   # rows for the CSV
+    print_items = []   # one item per sequence for terminal output + extra formats
 
     # ── Wrap the record iterator with a progress bar when available ───────────
     record_iter = (
@@ -290,11 +225,10 @@ def predict_from_fasta(
             continue
 
         # Strip N's for feature extraction (consistent with features_extractor)
-        seq_clean  = "".join(ch for ch in seq if ch in ("A", "T", "C", "G"))
-        seq_len    = len(seq_clean)
-        base_feats = extract_features(seq)
-        known_pos  = _parse_position_from_header(rec.description, position_classes)
-        coords     = _parse_coords_from_header(rec.description)
+        seq_clean = "".join(ch for ch in seq if ch in ("A", "T", "C", "G"))
+        seq_len   = len(seq_clean)
+        feats     = extract_features(seq)
+        coords    = _parse_coords_from_header(rec.description)
 
         # Genomic coordinate fields for BED/GFF3
         if coords is not None:
@@ -302,65 +236,29 @@ def predict_from_fasta(
         else:
             chrom, coord_start, coord_end = rec.id, 0, seq_len
 
-        if known_pos is not None:
-            # ── Single prediction: position is known from the header ──────────
-            row   = _build_feature_row(base_feats, known_pos, position_classes)
-            X     = pd.DataFrame([row], columns=all_columns)
-            pred  = int(model.predict(X)[0])
-            proba = float(model.predict_proba(X)[0, 1]) if hasattr(model, "predict_proba") else None
+        X     = pd.DataFrame([feats], columns=FEATURES_ORDER)
+        pred  = int(model.predict(X)[0])
+        proba = float(model.predict_proba(X)[0, 1]) if hasattr(model, "predict_proba") else None
 
-            output_rows.append({
-                "id":          rec.id,
-                "position":    known_pos,
-                "prediction":  pred,
-                "probability": f"{proba:.4f}" if proba is not None else "N/A",
-            })
-            print_items.append({
-                "id":          rec.id,
-                "pred":        pred,
-                "proba":       proba,
-                "position":    None,
-                "inferred":    False,
-                "seq_len":     seq_len,
-                "chrom":       chrom,
-                "coord_start": coord_start,
-                "coord_end":   coord_end,
-            })
-
-        else:
-            # ── Multi-prediction: run inference for all 4 positions ───────────
-            results = []
-            for pos in position_classes:
-                row   = _build_feature_row(base_feats, pos, position_classes)
-                X     = pd.DataFrame([row], columns=all_columns)
-                pred  = int(model.predict(X)[0])
-                proba = float(model.predict_proba(X)[0, 1]) if hasattr(model, "predict_proba") else None
-
-                output_rows.append({
-                    "id":          rec.id,
-                    "position":    pos,
-                    "prediction":  pred,
-                    "probability": f"{proba:.4f}" if proba is not None else "N/A",
-                })
-                results.append({"pred": pred, "proba": proba, "position": pos})
-
-            best = max(results, key=lambda r: r["proba"] if r["proba"] is not None else r["pred"])
-            print_items.append({
-                "id":          rec.id,
-                "pred":        best["pred"],
-                "proba":       best["proba"],
-                "position":    best["position"],
-                "inferred":    True,
-                "seq_len":     seq_len,
-                "chrom":       chrom,
-                "coord_start": coord_start,
-                "coord_end":   coord_end,
-            })
+        output_rows.append({
+            "id":          rec.id,
+            "prediction":  pred,
+            "probability": f"{proba:.4f}" if proba is not None else "N/A",
+        })
+        print_items.append({
+            "id":          rec.id,
+            "pred":        pred,
+            "proba":       proba,
+            "seq_len":     seq_len,
+            "chrom":       chrom,
+            "coord_start": coord_start,
+            "coord_end":   coord_end,
+        })
 
     # ── Write outputs ─────────────────────────────────────────────────────────
     os.makedirs("outs", exist_ok=True)
-    timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_path   = f"outs/{timestamp}"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_path = f"outs/{timestamp}"
 
     csv_path = f"{base_path}.csv"
     pd.DataFrame(output_rows).to_csv(csv_path, index=False, sep=",")
@@ -386,11 +284,7 @@ def predict_from_fasta(
         else:
             label = f"{Fore.LIGHTRED_EX}Sequence '{item['id']}' is not a CpG island.{Fore.RESET}"
 
-        pos_note = ""
-        if item["inferred"]:
-            pos_note = f"Best position: {item['position']}"
-
-        print(f"- {label}\n\t{prob_note}\n\t{pos_note}")
+        print(f"- {label}\n\t{prob_note}")
 
     print(f"\n    Results saved to:")
     for path in written_files:
@@ -440,7 +334,7 @@ def _check_version_compatibility(metadata: dict) -> None:
         if script_ver > max_ver:
             print(
                 f"COMPATIBILITY WARNING - this script is v{VERSION} but the "
-                f"loaded model was tested up to script v{max_ver_str}. "
+                f"loaded model was tested up to script {max_ver_str}. "
                 f"Results may differ from expected."
             )
 
@@ -460,23 +354,22 @@ if __name__ == "__main__":
         print("    Note: install 'tqdm' for progress bars (pip install tqdm).")
 
     # ── Load metadata ─────────────────────────────────────────────────────────
-    try:
-        metadata = _load_metadata()
-        position_classes = metadata.get("position_classes", _POSITION_CLASSES)
-        arch_version     = metadata.get("architecture_version", "unknown")
-        n_features       = metadata.get("n_features", None)
-        train_species    = metadata.get("training_species", [])
-        test_species     = metadata.get("test_species", [])
+    metadata     = _load_metadata()
+    arch_version = None
+    n_features   = None
+
+    if metadata is not None:
+        arch_version  = metadata.get("architecture_version", "unknown")
+        n_features    = metadata.get("n_features", None)
+        train_species = metadata.get("training_species", [])
+        test_species  = metadata.get("test_species", [])
         print(f"    Model architecture : {arch_version}")
         if train_species:
             print(f"    Trained on         : {', '.join(train_species)}")
         if test_species:
             print(f"    Evaluated on       : {', '.join(test_species)}")
-    except Exception as e:
-        print(_handle_io_error(e, _METADATA_FILE))
-        print("Warning: metadata not found, using built-in defaults.")
-        position_classes = _POSITION_CLASSES
-        n_features       = None
+    else:
+        print(f"Warning: metadata not found, proceeding without model info.")
 
     # ── Version compatibility check ───────────────────────────────────────────
     if metadata is not None:
@@ -491,7 +384,7 @@ if __name__ == "__main__":
 
     # Sanity check: verify expected feature count matches metadata
     if n_features is not None:
-        expected = len(FEATURES_ORDER) + len(_ONE_HOT_COLS)
+        expected = len(FEATURES_ORDER)
         if expected != n_features:
             print(
                 f"Warning: metadata expects {n_features} features but "
@@ -524,4 +417,4 @@ if __name__ == "__main__":
         if fasta_path == "/quit":
             _exit()
         else:
-            predict_from_fasta(model, fasta_path, position_classes, output_formats)
+            predict_from_fasta(model, fasta_path, output_formats)
