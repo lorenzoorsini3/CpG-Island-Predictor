@@ -26,7 +26,18 @@ import json
 import sys
 import os
 import re
+import warnings
 from datetime import datetime
+
+# sklearn 1.8+ emits a spurious UserWarning when its internal joblib workers
+# call joblib.delayed instead of sklearn.utils.parallel.delayed. The model
+# still works correctly; this filter silences the noise.
+warnings.filterwarnings(
+    "ignore",
+    message=r"`sklearn\.utils\.parallel\.delayed` should be used",
+    category=UserWarning,
+    module=r"sklearn\.utils\.parallel",
+)
 
 import joblib
 import pandas as pd
