@@ -1,6 +1,6 @@
-biopython>=1.83
-colorama>=0.4.6
-joblib>=1.5.3
-pandas>=2.2.1
-scikit-learn>=1.8.0
-tqdm>=4.66.5
+biopython==1.83
+colorama==0.4.6
+numpy==1.26.0
+onnxruntime==1.19.2
+pandas==2.2.1
+tqdm==4.66.5

@@ -23,11 +23,11 @@ Performance was evaluated on a held-out test set derived exclusively from dog (c
 
 | Metric    | Validation (dog) | Test (dog) | Cross-val (human+mouse) |
 |-----------|-----------------|------------|------------------------|
-| Accuracy  | 97.67%          | 97.59%     | 98.14%                 |
-| Precision | 96.91%          | 96.89%     | 97.78%                 |
-| Recall    | 98.47%          | 98.33%     | 98.52%                 |
-| F1        | 97.69%          | 97.61%     | 98.14%                 |
-| ROC-AUC   | 99.42%          | 99.44%     | 99.69%                 |
+| Accuracy  | 97.34%          | 97.47%     | 98.14%                 |
+| Precision | 96.09%          | 96.26%     | 97.70%                 |
+| Recall    | 98.70%          | 98.78%     | 98.60%                 |
+| F1        | 97.38%          | 97.50%     | 98.15%                 |
+| ROC-AUC   | 99.53%          | 99.55%     | 99.72%                 |
 
 A shuffle test confirms the model is not making random predictions (~50% accuracy on permuted labels).
 
@@ -46,14 +46,14 @@ pip install -r requirements.txt
 Run `CIP.py` from the command line (or by double-clicking it). When prompted, provide the path to a FASTA file containing the sequences to analyze:
 
 ```
-CpG Island Predictor (CIP) v3.0.0
+CpG Island Predictor (CIP) v4.0.0
 Copyright: AGPL-3.0-or-later (see LICENSE file)
 See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
     Model architecture : v3.2.0
     Trained on         : human (hg38), mouse (mm39)
     Evaluated on       : dog (canFam6)
 
-Enter path to FASTA file [--bed] [--gff3] or /quit: test.fa
+Enter FASTA path [--bed] [--gff3] or /quit: test.fa
 ```
 
 CIP will print a prediction and probability for each sequence:
@@ -81,7 +81,7 @@ CpG_Island_Predictor/
 ├── README.md                   # This file
 ├── test.fa                     # Sample FASTA sequences for testing
 ├── config/
-│   ├── model.pkl               # Pre-trained stacked ensemble model
+│   ├── model.onnx              # Pre-trained stacked ensemble model (ONNX format)
 │   └── metadata.json           # Model metadata (features, version, species)
 └── modules/
     ├── __init__.py

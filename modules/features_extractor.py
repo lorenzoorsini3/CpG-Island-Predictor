@@ -169,4 +169,4 @@ def extract_features(seq: str) -> dict:
 
     except Exception as e:
         print(f"Error extracting features: {e}")
-        return {k: 0 for k in FEATURES_ORDER}
+        return None
