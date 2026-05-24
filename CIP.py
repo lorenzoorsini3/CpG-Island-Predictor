@@ -19,16 +19,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+VERSION = "4.1.0"
 if __name__ == "__main__":
-    VERSION = "4.0.0"
     print(f"CpG Island Predictor (CIP) v{VERSION}")
 
-import json
-import sys
-import os
-import re
-import uuid
-import pathlib
+import json, sys, os, re, uuid, pathlib
 import pandas as pd
 import onnxruntime as rt
 import numpy as np
@@ -49,8 +44,6 @@ _SCRIPT_DIR    = pathlib.Path(__file__).parent.resolve()
 _MODEL_FILE    = _SCRIPT_DIR / "config" / "model.onnx"
 _METADATA_FILE = _SCRIPT_DIR / "config" / "metadata.json"
 _OUTS_DIR      = _SCRIPT_DIR / "outs"
-
-# Supported extra output formats (passed as flags on the input line).
 _SUPPORTED_FORMATS = {"bed", "gff3"}
 
 # Maps I/O exception types to human-readable error messages.
@@ -65,8 +58,7 @@ _FILE_ERRORS: dict[type, str] = {
 
 def _handle_io_error(e: Exception, path: str) -> str:
     """Return a formatted ERROR message for a file I/O exception."""
-    detail = _FILE_ERRORS.get(type(e), str(e))
-    return f"ERROR: '{path}': {detail}"
+    return f"ERROR: '{path}': {_FILE_ERRORS.get(type(e), str(e))}"
 
 
 def _load_metadata() -> dict | None:
@@ -92,12 +84,12 @@ def _parse_coords_from_header(header: str) -> tuple[str, int, int] | None:
     coordinates, or None if no coordinate pattern is found.
     """
     m = re.search(r"([\w.]+):(\d[\d,]*)-(\d[\d,]*)", header)
-    if m:
-        chrom = m.group(1)
-        start = int(m.group(2).replace(",", ""))
-        end   = int(m.group(3).replace(",", ""))
-        return chrom, start, end
-    return None
+    if not m:
+        return None
+    chrom = m.group(1)
+    start = int(m.group(2).replace(",", ""))
+    end   = int(m.group(3).replace(",", ""))
+    return chrom, start, end
 
 
 def _write_bed(print_items: list[dict], output_path: str) -> None:
@@ -116,11 +108,11 @@ def _write_bed(print_items: list[dict], output_path: str) -> None:
         'itemRgb="On"\n'
     ]
     for item in print_items:
-        chrom  = item.get("chrom", item["id"])
-        start  = item.get("coord_start", 0)
-        end    = item.get("coord_end", item.get("seq_len", 0))
-        score  = min(int(item["proba"] * 1000), 1000) if item["proba"] is not None else 0
-        rgb    = "0,200,0" if item["pred"] == 1 else "200,0,0"
+        chrom = item.get("chrom", item["id"])
+        start = item.get("coord_start", 0)
+        end   = item.get("coord_end", item.get("seq_len", 0))
+        score = min(int(item["proba"] * 1000), 1000) if item["proba"] is not None else 0
+        rgb   = "0,200,0" if item["pred"] == 1 else "200,0,0"
         lines.append(
             f"{chrom}\t{start}\t{end}\t{item['id']}\t{score}\t"
             f".\t{start}\t{end}\t{rgb}\n"
@@ -160,6 +152,17 @@ def _write_gff3(print_items: list[dict], output_path: str) -> None:
         fh.writelines(lines)
 
 
+def validate_fasta(fasta_file: str) -> bool:
+    valid_ext = {".fa", ".fasta", ".fna", ".ffn", ".faa", ".frn", ".txt"}
+    if pathlib.Path(fasta_file).suffix.lower() not in valid_ext:
+        print(
+            f"WARNING: file format not supported for {fasta_file}. Please, use only '.fa', "
+            "'.fasta', '.fna', '.ffn', '.faa', '.frn' or '.txt' extensions."
+        )
+        return False
+    return True
+
+
 def predict_from_fasta(
     model,
     fasta_path: str,
@@ -180,6 +183,9 @@ def predict_from_fasta(
     if output_formats is None:
         output_formats = set()
 
+    if not validate_fasta(fasta_path):
+        return
+
     try:
         records = list(SeqIO.parse(fasta_path, "fasta"))
     except Exception as e:
@@ -198,6 +204,8 @@ def predict_from_fasta(
         if _TQDM_AVAILABLE else records
     )
 
+    input_name = model.get_inputs()[0].name
+
     for rec in record_iter:
         seq = str(rec.seq).upper()
 
@@ -205,6 +213,13 @@ def predict_from_fasta(
             print(
                 f"WARNING: sequence '{rec.id}' contains invalid characters. "
                 "Please use only A, C, T, G or N."
+            )
+            continue
+
+        if len(seq) < 150:
+            print(
+                f"WARNING: sequence '{rec.id}' is too short ({len(seq)} bp, "
+                "minimum 150 bp). Skipping."
             )
             continue
 
@@ -218,11 +233,10 @@ def predict_from_fasta(
         coords  = _parse_coords_from_header(rec.description)
         chrom, coord_start, coord_end = coords if coords else (rec.id, 0, seq_len)
 
-        X_np       = np.array([[feats[f] for f in FEATURES_ORDER]], dtype=np.float32)
-        input_name = model.get_inputs()[0].name
-        outputs    = model.run(None, {input_name: X_np})
-        pred       = int(outputs[0][0])
-        proba      = float(outputs[1][0][1]) if len(outputs) > 1 else None
+        X_np    = np.array([[feats[f] for f in FEATURES_ORDER]], dtype=np.float32)
+        outputs = model.run(None, {input_name: X_np})
+        pred    = int(outputs[0][0])
+        proba   = float(outputs[1][0][1]) if len(outputs) > 1 else None
 
         output_rows.append({
             "id":          rec.id,
