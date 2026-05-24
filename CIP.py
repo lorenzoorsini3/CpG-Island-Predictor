@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-VERSION = "4.1.0"
+VERSION = "4.1.1"
 if __name__ == "__main__":
     print(f"CpG Island Predictor (CIP) v{VERSION}")
 
@@ -46,19 +46,23 @@ _METADATA_FILE = _SCRIPT_DIR / "config" / "metadata.json"
 _OUTS_DIR      = _SCRIPT_DIR / "outs"
 _SUPPORTED_FORMATS = {"bed", "gff3"}
 
-# Maps I/O exception types to human-readable error messages.
-_FILE_ERRORS: dict[type, str] = {
-    FileNotFoundError:  "File not found.",
-    IsADirectoryError:  "Path is a directory, not a file.",
-    PermissionError:    "Permission denied.",
-    UnicodeDecodeError: "File is not valid text (encoding error).",
-    OSError:            "OS-level I/O error.",
+# Maps exception types to human-readable error messages.
+_ERRORS: dict[type, str] = {
+    FileNotFoundError:    "File not found.",
+    IsADirectoryError:    "Path is a directory, not a file.",
+    PermissionError:      "Permission denied.",
+    UnicodeDecodeError:   "File is not valid text (encoding error).",
+    OSError:              "OS-level I/O error.",
+    ValueError:           "Invalid value or data format.",
+    TypeError:            "Unexpected data type.",
+    MemoryError:          "Not enough memory to complete the operation.",
+    json.JSONDecodeError: "Invalid JSON format.",
 }
 
 
-def _handle_io_error(e: Exception, path: str) -> str:
-    """Return a formatted ERROR message for a file I/O exception."""
-    return f"ERROR: '{path}': {_FILE_ERRORS.get(type(e), str(e))}"
+def _handle_error(e: Exception, context: str) -> str:
+    """Return a formatted ERROR message for a known exception type."""
+    return f"ERROR: '{context}': {_ERRORS.get(type(e), str(e))}"
 
 
 def _load_metadata() -> dict | None:
@@ -92,7 +96,7 @@ def _parse_coords_from_header(header: str) -> tuple[str, int, int] | None:
     return chrom, start, end
 
 
-def _write_bed(print_items: list[dict], output_path: str) -> None:
+def _write_bed(print_items: list[dict], output_path: str) -> bool:
     """Write predictions to a BED9 file.
 
     Coordinates come from the FASTA header when available (chr:start-end);
@@ -101,6 +105,8 @@ def _write_bed(print_items: list[dict], output_path: str) -> None:
 
     Score field: int(probability × 1000), clamped to [0, 1000].
     Colour coding: green (0,200,0) = CpG island; red (200,0,0) = non-island.
+
+    Returns True on success, False on I/O error.
     """
     lines = [
         'track name="CIP_predictions" '
@@ -117,17 +123,24 @@ def _write_bed(print_items: list[dict], output_path: str) -> None:
             f"{chrom}\t{start}\t{end}\t{item['id']}\t{score}\t"
             f".\t{start}\t{end}\t{rgb}\n"
         )
-    with open(output_path, "w", encoding="utf-8") as fh:
-        fh.writelines(lines)
+    try:
+        with open(output_path, "w", encoding="utf-8") as fh:
+            fh.writelines(lines)
+        return True
+    except Exception as e:
+        print(_handle_error(e, output_path))
+        return False
 
 
-def _write_gff3(print_items: list[dict], output_path: str) -> None:
+def _write_gff3(print_items: list[dict], output_path: str) -> bool:
     """Write predictions to a GFF3 file.
 
     Coordinates follow GFF3 convention (1-based, closed intervals).
     Feature type is ``CpG_island`` for positive predictions and
     ``non_CpG_island`` for negative ones. Probability and prediction flag
     are stored in the attributes column.
+
+    Returns True on success, False on I/O error.
     """
     lines = [
         "##gff-version 3\n",
@@ -148,8 +161,13 @@ def _write_gff3(print_items: list[dict], output_path: str) -> None:
             f"{chrom}\tCIP\t{feat_type}\t{gff_start}\t{gff_end}\t"
             f"{score_str}\t.\t.\t{attrs}\n"
         )
-    with open(output_path, "w", encoding="utf-8") as fh:
-        fh.writelines(lines)
+    try:
+        with open(output_path, "w", encoding="utf-8") as fh:
+            fh.writelines(lines)
+        return True
+    except Exception as e:
+        print(_handle_error(e, output_path))
+        return False
 
 
 def validate_fasta(fasta_file: str) -> bool:
@@ -182,14 +200,14 @@ def predict_from_fasta(
     """
     if output_formats is None:
         output_formats = set()
-
+    
     if not validate_fasta(fasta_path):
         return
 
     try:
         records = list(SeqIO.parse(fasta_path, "fasta"))
     except Exception as e:
-        print(_handle_io_error(e, fasta_path))
+        print(_handle_error(e, fasta_path))
         return
 
     if not records:
@@ -233,10 +251,14 @@ def predict_from_fasta(
         coords  = _parse_coords_from_header(rec.description)
         chrom, coord_start, coord_end = coords if coords else (rec.id, 0, seq_len)
 
-        X_np    = np.array([[feats[f] for f in FEATURES_ORDER]], dtype=np.float32)
-        outputs = model.run(None, {input_name: X_np})
-        pred    = int(outputs[0][0])
-        proba   = float(outputs[1][0][1]) if len(outputs) > 1 else None
+        X_np = np.array([[feats[f] for f in FEATURES_ORDER]], dtype=np.float32)
+        try:
+            outputs = model.run(None, {input_name: X_np})
+            pred    = int(outputs[0][0])
+            proba   = float(outputs[1][0][1]) if len(outputs) > 1 else None
+        except Exception as e:
+            print(f"WARNING: inference failed for '{rec.id}': {e}")
+            continue
 
         output_rows.append({
             "id":          rec.id,
@@ -254,22 +276,32 @@ def predict_from_fasta(
         })
 
     # ── Write outputs ─────────────────────────────────────────────────────────
-    os.makedirs(_OUTS_DIR, exist_ok=True)
+    try:
+        os.makedirs(_OUTS_DIR, exist_ok=True)
+    except Exception as e:
+        print(_handle_error(e, str(_OUTS_DIR)))
+        return
+
     base_path = f"{_OUTS_DIR}/{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex[:10]}"
 
+    written_files = []
+
     csv_path = f"{base_path}.csv"
-    pd.DataFrame(output_rows).to_csv(csv_path, index=False)
-    written_files = [csv_path]
+    try:
+        pd.DataFrame(output_rows).to_csv(csv_path, index=False)
+        written_files.append(csv_path)
+    except Exception as e:
+        print(_handle_error(e, csv_path))
 
     if "bed" in output_formats:
         bed_path = f"{base_path}.bed"
-        _write_bed(print_items, bed_path)
-        written_files.append(bed_path)
+        if _write_bed(print_items, bed_path):
+            written_files.append(bed_path)
 
     if "gff3" in output_formats:
         gff3_path = f"{base_path}.gff3"
-        _write_gff3(print_items, gff3_path)
-        written_files.append(gff3_path)
+        if _write_gff3(print_items, gff3_path):
+            written_files.append(gff3_path)
 
     # ── Terminal output ───────────────────────────────────────────────────────
     for item in print_items:
@@ -318,7 +350,7 @@ def _check_version_compatibility(metadata: dict) -> bool:
     if max_ver_str and script_ver > _parse_version(max_ver_str):
         print(
             f"WARNING: this script is v{VERSION} but the loaded model was "
-            f"tested up to script v{max_ver_str}. Results may differ from expected."
+            f"tested up to script {max_ver_str}. Results may differ from expected."
         )
 
     return False
@@ -363,7 +395,7 @@ if __name__ == "__main__":
     try:
         model = rt.InferenceSession(_MODEL_FILE)
     except Exception as e:
-        print(_handle_io_error(e, _MODEL_FILE))
+        print(_handle_error(e, _MODEL_FILE))
         _exit(1)
 
     # Warn if the feature count in metadata doesn't match this version of CIP
