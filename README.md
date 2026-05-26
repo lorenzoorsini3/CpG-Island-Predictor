@@ -46,7 +46,7 @@ pip install -r requirements.txt
 Run `CIP.py` from the command line (or by double-clicking it). When prompted, provide the path to a FASTA file containing the sequences to analyze:
 
 ```
-CpG Island Predictor (CIP) v4.1.1
+CpG Island Predictor (CIP) v4.2.0
 Copyright: AGPL-3.0-or-later (see LICENSE file)
 See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
     Model architecture : v3.2.0
@@ -79,13 +79,17 @@ CpG_Island_Predictor/
 ├── requirements.txt            # Python dependencies
 ├── LICENSE                     # AGPL-3.0 license
 ├── README.md                   # This file
-├── test.fa                     # Sample FASTA sequences for testing
+├── test.fa                 # Sample FASTA sequences for testing
 ├── config/
 │   ├── model.onnx              # Pre-trained stacked ensemble model (ONNX format)
 │   └── metadata.json           # Model metadata (features, version, species)
+├── logs/                       # Session logs (auto-created)
+├── outs/                       # Prediction outputs (auto-created)
 └── modules/
-    ├── __init__.py
-    └── features_extractor.py   # Feature extraction logic
+    ├── __init__.py             # Package init; exposes version and public symbols
+    ├── exception_handler.py    # Error and warning helpers
+    ├── features_extractor.py   # Sequence feature extraction logic
+    └── logger.py               # Logger setup
 ```
 
 ## Authors

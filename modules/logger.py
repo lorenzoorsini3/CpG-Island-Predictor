@@ -19,20 +19,22 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""CIP modules package."""
+"""Logger setup for CIP. Exposes ``log`` and ``_SCRIPT_DIR``."""
 
-from .features_extractor import FEATURES_ORDER, extract_features
-from .exception_handler import _handle_error, _handle_warning
-from .logger import _SCRIPT_DIR, log
+import logging
+from datetime import datetime
+from pathlib import Path
 
-__version__ = "v4.2.0"
+_SCRIPT_DIR = Path(__file__).resolve().parent.parent
 
-__all__ = [
-    "FEATURES_ORDER",
-    "extract_features",
-    "_handle_error",
-    "_handle_warning",
-    "_SCRIPT_DIR",
-    "log",
-    "__version__",
-]
+_log_dir = _SCRIPT_DIR / "logs"
+_log_dir.mkdir(exist_ok=True)
+
+log = logging.getLogger("CIP")
+log.setLevel(logging.DEBUG)
+_fh = logging.FileHandler(
+    _log_dir / f"cip_{datetime.now().strftime('%Y%m%d')}.log",
+    encoding="utf-8",
+)
+_fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+log.addHandler(_fh)
