@@ -23,7 +23,7 @@ from modules.__init__ import __version__ as VERSION
 if __name__ == "__main__":
     print(f"CpG Island Predictor (CIP) {VERSION}")
 
-import json, sys, os, re, uuid, pathlib
+import json, sys, re, uuid, pathlib
 import pandas as pd
 import onnxruntime as rt
 import numpy as np
@@ -40,7 +40,7 @@ except ImportError:
 
 from modules.features_extractor import FEATURES_ORDER, extract_features
 from modules.exception_handler import _handle_error, _handle_warning
-from modules.logger import _SCRIPT_DIR, log
+from modules.logger import _SCRIPT_DIR, log, wait_for_archiver
 
 log.info("Session started, CIP %s", VERSION)
 
@@ -354,9 +354,14 @@ def _check_version_compatibility(metadata: dict) -> bool:
 
 
 def _exit(code: int = 0) -> None:
-    """Clean up colorama and exit."""
+    """Clean up colorama, wait for log archiver, then exit."""
     log.info("Session ended.\n")
     deinit()
+    try:
+        wait_for_archiver()
+    except Exception as e:
+        _handle_warning('error', f'Compression error: {e}')
+        sys.exit(code)
     sys.exit(code)
 
 
