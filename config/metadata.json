@@ -1,5 +1,5 @@
 {
-  "architecture_version": "v3.2.0",
+  "architecture_version": "v3.3.0",
   "model_type": "StackingClassifier (RandomForest + GradientBoosting = LogisticRegression)",
   "min_script_version": "v3.0.0",
   "max_script_version": "v4.2.0",
@@ -54,5 +54,5 @@
     "tgt_content",
     "ttg_content"
   ],
-  "training_date": "2026-05-18T17:37:17.714108"
+  "training_date": "2026-05-29T15:03:56.735753"
 }
