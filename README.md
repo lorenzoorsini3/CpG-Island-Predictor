@@ -23,11 +23,11 @@ Performance was evaluated on a held-out test set derived exclusively from dog (c
 
 | Metric    | Validation (dog) | Test (dog) | Cross-val (human+mouse) |
 |-----------|-----------------|------------|------------------------|
-| Accuracy  | 97.34%          | 97.47%     | 98.14%                 |
-| Precision | 96.09%          | 96.26%     | 97.70%                 |
-| Recall    | 98.70%          | 98.78%     | 98.60%                 |
-| F1        | 97.38%          | 97.50%     | 98.15%                 |
-| ROC-AUC   | 99.53%          | 99.55%     | 99.72%                 |
+| Accuracy  | 98.06%          | 97.88%     | 98.48%                 |
+| Precision | 97.06%          | 96.89%     | 97.96%                 |
+| Recall    | 99.12%          | 98.93%     | 99.02%                 |
+| F1        | 98.08%          | 97.90%     | 98.49%                 |
+| ROC-AUC   | 99.64%          | 99.68%     | 99.84%                 |
 
 A shuffle test confirms the model is not making random predictions (~50% accuracy on permuted labels).
 
@@ -49,7 +49,7 @@ Run `CIP.py` from the command line (or by double-clicking it). When prompted, pr
 CpG Island Predictor (CIP) v4.2.0
 Copyright: AGPL-3.0-or-later (see LICENSE file)
 See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
-    Model architecture : v3.2.0
+    Model architecture : v3.3.0
     Trained on         : human (hg38), mouse (mm39)
     Evaluated on       : dog (canFam6)
 
