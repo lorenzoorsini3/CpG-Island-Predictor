@@ -1,9 +1,10 @@
 {
-  "architecture_version": "v3.3.0",
+  "architecture_version": "v3.4.0",
   "model_type": "StackingClassifier (RandomForest + GradientBoosting = LogisticRegression)",
   "min_script_version": "v3.0.0",
   "max_script_version": "v4.2.0",
   "license": "AGPL-3.0-or-later",
+  "prediction_threshold": 0.552955227482947,
   "training_species": [
     "human (hg38)",
     "mouse (mm39)"
@@ -54,5 +55,5 @@
     "tgt_content",
     "ttg_content"
   ],
-  "training_date": "2026-05-29T15:03:56.735753"
+  "training_date": "2026-05-30T14:42:20.224855"
 }

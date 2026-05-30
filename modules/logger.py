@@ -65,8 +65,8 @@ _STAGING_RE     = re.compile(r"^cip_persist_(\d{8})-(\d{8})\.tar$")
 _TMP_RE         = re.compile(r"^cip_persist_(\d{8})-(\d{8})\.tar\.tmp$")
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-_SCRIPT_DIR = Path(__file__).resolve().parent.parent
-_log_dir    = _SCRIPT_DIR / "logs"
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
+_log_dir    = SCRIPT_DIR / "logs"
 _log_dir.mkdir(exist_ok=True)
 
 # ── Archiver state ─────────────────────────────────────────────────────────────

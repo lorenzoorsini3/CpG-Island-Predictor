@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-from modules.__init__ import __version__ as VERSION
+from modules import __version__ as VERSION
 if __name__ == "__main__":
     print(f"CpG Island Predictor (CIP) {VERSION}")
 
@@ -38,15 +38,16 @@ try:
 except ImportError:
     _TQDM_AVAILABLE = False
 
-from modules.features_extractor import FEATURES_ORDER, extract_features
-from modules.exception_handler import _handle_error, _handle_warning
-from modules.logger import _SCRIPT_DIR, log, wait_for_archiver
+from modules import (
+    FEATURES_ORDER, extract_features, handle_error, 
+    handle_warning, SCRIPT_DIR, log, wait_for_archiver
+)
 
 log.info("Session started, CIP %s", VERSION)
 
-_MODEL_FILE        = _SCRIPT_DIR / "config" / "model.onnx"
-_METADATA_FILE     = _SCRIPT_DIR / "config" / "metadata.json"
-_OUTS_DIR          = _SCRIPT_DIR / "outs"
+_MODEL_FILE        = SCRIPT_DIR / "config" / "model.onnx"
+_METADATA_FILE     = SCRIPT_DIR / "config" / "metadata.json"
+_OUTS_DIR          = SCRIPT_DIR / "outs"
 _SUPPORTED_FORMATS = {"bed", "gff3"}
 
 
@@ -56,9 +57,9 @@ def _load_metadata() -> dict | None:
         with open(_METADATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        _handle_warning("warning", "metadata.json not found", log)
+        handle_warning("warning", "metadata.json not found", log)
     except Exception as e:
-        _handle_warning("warning", f"Could not read metadata.json: {e}", log)
+        handle_warning("warning", f"Could not read metadata.json: {e}", log)
     return None
 
 
@@ -111,7 +112,7 @@ def _write_bed(print_items: list[dict], output_path: pathlib.Path) -> bool:
         output_path.write_text("".join(lines), encoding="utf-8")
         return True
     except Exception as e:
-        print(_handle_error(e, output_path))
+        print(handle_error(e, output_path))
         return False
 
 
@@ -148,7 +149,7 @@ def _write_gff3(print_items: list[dict], output_path: pathlib.Path) -> bool:
         output_path.write_text("".join(lines), encoding="utf-8")
         return True
     except Exception as e:
-        print(_handle_error(e, output_path))
+        print(handle_error(e, output_path))
         return False
 
 
@@ -156,7 +157,7 @@ def validate_fasta(fasta_file: str) -> bool:
     """Return True if ``fasta_file`` has a recognised FASTA extension."""
     valid_ext = {".fa", ".fasta", ".fna", ".ffn", ".faa", ".frn", ".txt"}
     if pathlib.Path(fasta_file).suffix.lower() not in valid_ext:
-        _handle_warning(
+        handle_warning(
             "warning",
             f"File format not supported for {fasta_file}. Please, use only "
             "'.fa', '.fasta' '.fna', '.ffn', '.faa', '.frn' or '.txt' extensions.",
@@ -170,6 +171,7 @@ def predict_from_fasta(
     model,
     fasta_path: str,
     output_formats: set[str] | None = None,
+    threshold: float = 0.5
 ) -> None:
     """Run predictions on all sequences in a FASTA file.
 
@@ -192,12 +194,12 @@ def predict_from_fasta(
     try:
         records = list(SeqIO.parse(fasta_path, "fasta"))
     except Exception as e:
-        print(_handle_error(e, fasta_path))
+        print(handle_error(e, fasta_path))
         log.error("Failed to parse FASTA '%s': %s", fasta_path, e)
         return
 
     if not records:
-        _handle_warning("warning", f"No sequences found in {fasta_path}", log)
+        handle_warning("warning", f"No sequences found in {fasta_path}", log)
         return
 
     log.info(
@@ -218,7 +220,7 @@ def predict_from_fasta(
         seq = str(rec.seq).upper()
 
         if not set(seq).issubset({"A", "C", "G", "T", "N"}):
-            _handle_warning(
+            handle_warning(
                 "warning",
                 f"Sequence '{rec.id}' contains invalid characters. Please use only A, C, T, G or N.",
                 log,
@@ -226,7 +228,7 @@ def predict_from_fasta(
             continue
 
         if len(seq) < 150:
-            _handle_warning(
+            handle_warning(
                 "warning",
                 f"Sequence '{rec.id}' is too short ({len(seq)} bp, minimum 150 bp). Skipping.",
                 log,
@@ -235,7 +237,7 @@ def predict_from_fasta(
 
         feats = extract_features(seq)
         if feats is None:
-            _handle_warning("warning", f"Skipping '{rec.id}' due to feature extraction error.", log)
+            handle_warning("warning", f"Skipping '{rec.id}' due to feature extraction error.", log)
             continue
 
         seq_len = sum(1 for ch in seq if ch in "ATCG")
@@ -245,10 +247,10 @@ def predict_from_fasta(
         X_np = np.array([[feats[f] for f in FEATURES_ORDER]], dtype=np.float32)
         try:
             outputs = model.run(None, {input_name: X_np})
-            pred    = int(outputs[0][0])
             proba   = float(outputs[1][0][1]) if len(outputs) > 1 else None
+            pred    = int(proba >= threshold) if proba is not None else int(outputs[0][0])
         except Exception as e:
-            _handle_warning("warning", f"Inference failed for '{rec.id}': {e}", log)
+            handle_warning("warning", f"Inference failed for '{rec.id}': {e}", log)
             continue
 
         log.debug("Predicted '%s': label=%d, proba=%.4f", rec.id, pred, proba if proba is not None else -1)
@@ -272,7 +274,7 @@ def predict_from_fasta(
     try:
         _OUTS_DIR.mkdir(exist_ok=True)
     except Exception as e:
-        print(_handle_error(e, str(_OUTS_DIR)))
+        print(handle_error(e, str(_OUTS_DIR)))
         return
 
     base_path    = _OUTS_DIR / f"{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex[:10]}"
@@ -283,7 +285,7 @@ def predict_from_fasta(
         pd.DataFrame(output_rows).to_csv(csv_path, index=False)
         written_files.append(csv_path)
     except Exception as e:
-        print(_handle_error(e, csv_path))
+        print(handle_error(e, csv_path))
 
     if "bed" in output_formats:
         bed_path = base_path.with_suffix(".bed")
@@ -334,7 +336,7 @@ def _check_version_compatibility(metadata: dict) -> bool:
     max_ver_str = metadata.get("max_script_version")
 
     if min_ver_str and script_ver < _parse_version(min_ver_str):
-        _handle_warning(
+        handle_warning(
             "error",
             f"This script is {VERSION} but the loaded model requires at least script "
             f"{min_ver_str}. Please update CIP.py.",
@@ -343,7 +345,7 @@ def _check_version_compatibility(metadata: dict) -> bool:
         return True
 
     if max_ver_str and script_ver > _parse_version(max_ver_str):
-        _handle_warning(
+        handle_warning(
             "warning",
             f"This script is {VERSION} but the loaded model was "
             f"tested up to script {max_ver_str}. Results may differ from expected.",
@@ -360,7 +362,7 @@ def _exit(code: int = 0) -> None:
     try:
         wait_for_archiver()
     except Exception as e:
-        _handle_warning('error', f'Compression error: {e}')
+        handle_warning('error', f'Compression error: {e}')
         sys.exit(code)
     sys.exit(code)
 
@@ -382,6 +384,7 @@ if __name__ == "__main__":
         n_features    = metadata.get("n_features")
         train_species = metadata.get("training_species", [])
         test_species  = metadata.get("test_species", [])
+        threshold     = metadata.get("prediction_threshold", 0.5)
         print(f"    Model architecture : {arch_version}")
         if train_species:
             print(f"    Trained on         : {', '.join(train_species)}")
@@ -389,7 +392,7 @@ if __name__ == "__main__":
             print(f"    Evaluated on       : {', '.join(test_species)}")
         log.info("Architecture: %s, trained on: %s", arch_version, train_species)
     else:
-        _handle_warning("warning", "Metadata not found, proceeding without model info.", log)
+        handle_warning("warning", "Metadata not found, proceeding without model info.", log)
 
     # ── Version compatibility check ───────────────────────────────────────────
     if metadata is not None and _check_version_compatibility(metadata):
@@ -399,12 +402,12 @@ if __name__ == "__main__":
     try:
         model = rt.InferenceSession(_MODEL_FILE)
     except Exception as e:
-        print(_handle_error(e, _MODEL_FILE))
+        print(handle_error(e, _MODEL_FILE))
         log.error("Failed to load model '%s': %s", _MODEL_FILE, e)
         _exit(1)
 
     if n_features is not None and len(FEATURES_ORDER) != n_features:
-        _handle_warning(
+        handle_warning(
             "warning",
             f"Metadata expects {n_features} features but this version of CIP would build "
             f"{len(FEATURES_ORDER)}. Results may be unreliable.",
@@ -429,7 +432,7 @@ if __name__ == "__main__":
 
         unknown_flags = flags - _SUPPORTED_FORMATS
         if unknown_flags:
-            _handle_warning(
+            handle_warning(
                 "warning",
                 f"Unrecognised flags ignored: {', '.join('--' + f for f in unknown_flags)}",
                 log,
@@ -438,4 +441,4 @@ if __name__ == "__main__":
         if fasta_path == "/quit":
             _exit()
         else:
-            predict_from_fasta(model, fasta_path, output_formats)
+            predict_from_fasta(model, fasta_path, output_formats, threshold)

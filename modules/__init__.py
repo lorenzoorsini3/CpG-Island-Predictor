@@ -22,17 +22,17 @@
 """CIP modules package."""
 
 from .features_extractor import FEATURES_ORDER, extract_features
-from .exception_handler import _handle_error, _handle_warning
-from .logger import _SCRIPT_DIR, log, wait_for_archiver
+from .exception_handler import handle_error, handle_warning
+from .logger import SCRIPT_DIR, log, wait_for_archiver
 
 __version__ = "v4.2.0"
 
 __all__ = [
     "FEATURES_ORDER",
     "extract_features",
-    "_handle_error",
-    "_handle_warning",
-    "_SCRIPT_DIR",
+    "handle_error",
+    "handle_warning",
+    "SCRIPT_DIR",
     "log",
     "wait_for_archiver",
     "__version__",

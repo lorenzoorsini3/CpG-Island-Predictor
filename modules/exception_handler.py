@@ -36,12 +36,12 @@ _ERRORS: dict[type, str] = {
 }
 
 
-def _handle_error(e: Exception, context: str) -> str:
+def handle_error(e: Exception, context: str) -> str:
     """Return a formatted ERROR string for a known exception type."""
     return f"ERROR: '{context}': {_ERRORS.get(type(e), str(e))}"
 
 
-def _handle_warning(level: str, msg: str, log) -> None:
+def handle_warning(level: str, msg: str, log) -> None:
     """Print ``msg`` to stdout and log it at ``level``."""
     print(f"{level.upper()}: {msg}")
     if level == "warning":
