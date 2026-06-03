@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright (C) 2026 Lorenzo Orsini
 # Author(s):
 #   - Lorenzo Orsini, lorenzo.orsini3@gmail.com
