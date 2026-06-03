@@ -19,9 +19,21 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""CIP modules package."""
+
 from .features_extractor import FEATURES_ORDER, extract_features
+from .exception_handler import handle_error, handle_warning
+from .logger import SCRIPT_DIR, log, wait_for_archiver
+
+__version__ = "v4.2.0"
 
 __all__ = [
     "FEATURES_ORDER",
     "extract_features",
+    "handle_error",
+    "handle_warning",
+    "SCRIPT_DIR",
+    "log",
+    "wait_for_archiver",
+    "__version__",
 ]

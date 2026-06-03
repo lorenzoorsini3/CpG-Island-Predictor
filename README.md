@@ -23,11 +23,11 @@ Performance was evaluated on a held-out test set derived exclusively from dog (c
 
 | Metric    | Validation (dog) | Test (dog) | Cross-val (human+mouse) |
 |-----------|-----------------|------------|------------------------|
-| Accuracy  | 97.34%          | 97.47%     | 98.14%                 |
-| Precision | 96.09%          | 96.26%     | 97.70%                 |
-| Recall    | 98.70%          | 98.78%     | 98.60%                 |
-| F1        | 97.38%          | 97.50%     | 98.15%                 |
-| ROC-AUC   | 99.53%          | 99.55%     | 99.72%                 |
+| Accuracy  | 98.93%          | 98.90%     | 99.23%                 |
+| Precision | 98.34%          | 98.31%     | 98.84%                 |
+| Recall    | 99.53%          | 99.49%     | 99.63%                 |
+| F1        | 98.93%          | 98.90%     | 99.23%                 |
+| ROC-AUC   | 99.70%          | 99.75%     | 99.90%                 |
 
 A shuffle test confirms the model is not making random predictions (~50% accuracy on permuted labels).
 
@@ -46,10 +46,10 @@ pip install -r requirements.txt
 Run `CIP.py` from the command line (or by double-clicking it). When prompted, provide the path to a FASTA file containing the sequences to analyze:
 
 ```
-CpG Island Predictor (CIP) v4.1.1
+CpG Island Predictor (CIP) v4.2.0
 Copyright: AGPL-3.0-or-later (see LICENSE file)
 See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
-    Model architecture : v3.2.0
+    Model architecture : v3.4.0
     Trained on         : human (hg38), mouse (mm39)
     Evaluated on       : dog (canFam6)
 
@@ -79,13 +79,17 @@ CpG_Island_Predictor/
 ├── requirements.txt            # Python dependencies
 ├── LICENSE                     # AGPL-3.0 license
 ├── README.md                   # This file
-├── test.fa                     # Sample FASTA sequences for testing
+├── test.fa                 # Sample FASTA sequences for testing
 ├── config/
 │   ├── model.onnx              # Pre-trained stacked ensemble model (ONNX format)
 │   └── metadata.json           # Model metadata (features, version, species)
+├── logs/                       # Session logs (auto-created)
+├── outs/                       # Prediction outputs (auto-created)
 └── modules/
-    ├── __init__.py
-    └── features_extractor.py   # Feature extraction logic
+    ├── __init__.py             # Package init; exposes version and public symbols
+    ├── exception_handler.py    # Error and warning helpers
+    ├── features_extractor.py   # Sequence feature extraction logic
+    └── logger.py               # Logger setup
 ```
 
 ## Authors

@@ -35,5 +35,6 @@ Thumbs.db
 htmlcov/
 .coverage
 
-# Output
+# Self-generated
+logs/
 outs/
