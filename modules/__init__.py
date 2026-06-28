@@ -25,7 +25,7 @@ from .features_extractor import FEATURES_ORDER, extract_features
 from .exception_handler import handle_error, handle_warning
 from .logger import SCRIPT_DIR, log, wait_for_archiver
 
-__version__ = "v4.2.0"
+__version__ = "v4.2.1"
 
 __all__ = [
     "FEATURES_ORDER",
