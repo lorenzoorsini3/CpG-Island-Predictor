@@ -2,7 +2,7 @@
   "architecture_version": "v3.4.0",
   "model_type": "StackingClassifier (RandomForest + GradientBoosting = LogisticRegression)",
   "min_script_version": "v3.0.0",
-  "max_script_version": "v4.2.0",
+  "max_script_version": "v4.2.1",
   "license": "AGPL-3.0-or-later",
   "prediction_threshold": 0.552955227482947,
   "training_species": [

@@ -218,6 +218,7 @@ def predict_from_fasta(
     input_name = model.get_inputs()[0].name
 
     for rec in record_iter:
+        log.debug("Predicting '%s'", rec.id)
         seq = str(rec.seq).upper()
 
         if not set(seq).issubset({"A", "C", "G", "T", "N"}):

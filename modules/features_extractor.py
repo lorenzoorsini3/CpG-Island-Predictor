@@ -46,6 +46,7 @@ the pipeline (one-hot encoding) and is NOT computed here.
 """
 
 from collections import Counter
+from .logger import log
 
 # Feature names in the exact order expected by the model.
 FEATURES_ORDER = [
@@ -111,6 +112,9 @@ def extract_features(seq: str) -> dict | None:
         or ``None`` on error.
     """
     try:
+        for ch in seq.upper():
+            if ch not in "ATCG":
+                log.warning("Base %s excluded from inference", ch)
         seq = "".join(ch for ch in seq.upper() if ch in "ATCG")
         n = len(seq)
 
