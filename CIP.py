@@ -359,7 +359,7 @@ def _check_version_compatibility(metadata: dict) -> bool:
 
 def _exit(code: int = 0) -> None:
     """Clean up colorama, wait for log archiver, then exit."""
-    log.info("Session ended.\n")
+    log.info("Session ended.")
     deinit()
     try:
         wait_for_archiver()
