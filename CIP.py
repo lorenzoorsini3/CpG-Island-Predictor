@@ -242,7 +242,7 @@ def predict_from_fasta(
             handle_warning("warning", f"Skipping '{rec.id}' due to feature extraction error.", log)
             continue
 
-        seq_len = sum(1 for ch in seq if ch in "ATCG")
+        seq_len = sum(1 for ch in seq if ch in "ATCGN")
         coords  = _parse_coords_from_header(rec.description)
         chrom, coord_start, coord_end = coords if coords else (rec.id, 0, seq_len)
 
@@ -359,7 +359,7 @@ def _check_version_compatibility(metadata: dict) -> bool:
 
 def _exit(code: int = 0) -> None:
     """Clean up colorama, wait for log archiver, then exit."""
-    log.info("Session ended.\n")
+    log.info("Session ended.")
     deinit()
     try:
         wait_for_archiver()

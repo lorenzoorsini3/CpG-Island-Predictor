@@ -113,9 +113,9 @@ def extract_features(seq: str) -> dict | None:
     """
     try:
         for ch in seq.upper():
-            if ch not in "ATCG":
+            if ch not in "ATCGN":
                 log.warning("Base %s excluded from inference", ch)
-        seq = "".join(ch for ch in seq.upper() if ch in "ATCG")
+        seq = "".join(ch for ch in seq.upper() if ch in "ATCGN")
         n = len(seq)
 
         mono  = Counter(seq)

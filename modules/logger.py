@@ -68,6 +68,7 @@ _TMP_RE         = re.compile(r"^cip_persist_(\d{8})-(\d{8})\.tar\.tmp$")
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 _log_dir    = SCRIPT_DIR / "logs"
 _log_dir.mkdir(exist_ok=True)
+_log_file = _log_dir / f"cip_{datetime.now().strftime('%Y%m%d')}.log"
 
 # ── Archiver state ─────────────────────────────────────────────────────────────
 _archiver_lock   = threading.Lock()
@@ -303,10 +304,14 @@ def wait_for_archiver() -> None:
 
 
 # ── Logger setup ───────────────────────────────────────────────────────────────
+if os.path.exists(_log_file):
+    with open(_log_file, "a") as f:
+        f.write("\n")
+
 log = logging.getLogger("CIP")
 log.setLevel(logging.DEBUG)
 _fh = logging.FileHandler(
-    _log_dir / f"cip_{datetime.now().strftime('%Y%m%d')}.log",
+    _log_file,
     encoding="utf-8",
 )
 _fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
