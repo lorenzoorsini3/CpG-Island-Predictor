@@ -46,10 +46,11 @@ from modules import (
 
 log.info("Session started, CIP %s", VERSION)
 
-_MODEL_FILE        = SCRIPT_DIR / "config" / "model.onnx"
-_METADATA_FILE     = SCRIPT_DIR / "config" / "metadata.json"
-_OUTS_DIR          = SCRIPT_DIR / "outs"
-_SUPPORTED_FORMATS = {"bed", "gff3"}
+_METADATA_FILE      = SCRIPT_DIR / "config" / "metadata.json"
+_MIN_VALID_FRACTION = 0.9
+_MODEL_FILE         = SCRIPT_DIR / "config" / "model.onnx"
+_OUTS_DIR           = SCRIPT_DIR / "outs"
+_SUPPORTED_FORMATS  = {"bed", "gff3"}
 
 
 def _load_metadata() -> dict | None:
@@ -89,7 +90,7 @@ def _write_bed(print_items: list[dict], output_path: pathlib.Path) -> bool:
     otherwise the sequence id is used as chrom with coordinates spanning
     the full sequence length.
 
-    Score field: int(probability × 1000), clamped to [0, 1000].
+    Score field: int(probability x 1000), clamped to [0, 1000].
     Colour coding: green (0,200,0) = CpG island; red (200,0,0) = non-island.
 
     Returns True on success, False on I/O error.
@@ -210,6 +211,7 @@ def predict_from_fasta(
 
     output_rows = []
     print_items = []
+    valid_items = []
 
     record_iter = (
         tqdm(records, desc="Predicting", unit="seq", ncols=80)
@@ -237,6 +239,16 @@ def predict_from_fasta(
             )
             continue
 
+        n_valid = sum(1 for ch in seq if ch in "ATCG")
+        if n_valid / len(seq) < _MIN_VALID_FRACTION:
+            handle_warning(
+                "warning",
+                f"Sequence '{rec.id}' has too many ambiguous/N bases "
+                f"({n_valid}/{len(seq)} valid, {_MIN_VALID_FRACTION:.0%} required). Skipping.",
+                log,
+            )
+            continue
+
         feats = extract_features(seq)
         if feats is None:
             handle_warning("warning", f"Skipping '{rec.id}' due to feature extraction error.", log)
@@ -246,31 +258,65 @@ def predict_from_fasta(
         coords  = _parse_coords_from_header(rec.description)
         chrom, coord_start, coord_end = coords if coords else (rec.id, 0, seq_len)
 
-        X_np = np.array([[feats[f] for f in FEATURES_ORDER]], dtype=np.float32)
-        try:
-            outputs = model.run(None, {input_name: X_np})
-            proba   = float(outputs[1][0][1]) if len(outputs) > 1 else None
-            pred    = int(proba >= threshold) if proba is not None else int(outputs[0][0])
-        except Exception as e:
-            handle_warning("warning", f"Inference failed for '{rec.id}': {e}", log)
-            continue
-
-        log.debug("Predicted '%s': label=%d, proba=%.4f", rec.id, pred, proba if proba is not None else -1)
-
-        output_rows.append({
+        valid_items.append({
             "id":          rec.id,
-            "prediction":  pred,
-            "probability": f"{proba:.4f}" if proba is not None else "N/A",
-        })
-        print_items.append({
-            "id":          rec.id,
-            "pred":        pred,
-            "proba":       proba,
+            "feats":       feats,
             "seq_len":     seq_len,
             "chrom":       chrom,
             "coord_start": coord_start,
             "coord_end":   coord_end,
         })
+
+    # ── Batched inference ────────────────────────────────────────────────────
+    # The ONNX model accepts input shape [None, 40], so we run it once per
+    # block of sequences instead of once per sequence.
+    _BATCH_SIZE = 1000
+    for batch_start in range(0, len(valid_items), _BATCH_SIZE):
+        batch = valid_items[batch_start:batch_start + _BATCH_SIZE]
+        X_np = np.array(
+            [[item["feats"][f] for f in FEATURES_ORDER] for item in batch],
+            dtype=np.float32,
+        )
+        try:
+            outputs = model.run(None, {input_name: X_np})
+        except Exception as e:
+            for item in batch:
+                handle_warning("warning", f"Inference failed for '{item['id']}': {e}", log)
+            continue
+
+        has_proba = len(outputs) > 1
+        for i, item in enumerate(batch):
+            proba = float(outputs[1][i][1]) if has_proba else None
+            pred  = int(proba >= threshold) if proba is not None else int(outputs[0][i])
+
+            log.debug(
+                "Predicted '%s': label=%d, proba=%.4f",
+                item["id"], pred, proba if proba is not None else -1,
+            )
+
+            output_rows.append({
+                "id":          item["id"],
+                "prediction":  pred,
+                "probability": f"{proba:.4f}" if proba is not None else "N/A",
+            })
+            print_items.append({
+                "id":          item["id"],
+                "pred":        pred,
+                "proba":       proba,
+                "seq_len":     item["seq_len"],
+                "chrom":       item["chrom"],
+                "coord_start": item["coord_start"],
+                "coord_end":   item["coord_end"],
+            })
+
+    if not output_rows:
+        handle_warning(
+            "warning",
+            f"No valid sequences to save for '{fasta_path}'.",
+            log,
+        )
+        log.info("Run complete — no valid predictions, no files written.")
+        return
 
     # ── Write outputs ─────────────────────────────────────────────────────────
     try:
@@ -315,19 +361,27 @@ def predict_from_fasta(
 
 
 def _parse_version(v: str) -> tuple[int, ...]:
-    """Parse a 'X.Y.Z' version string into a comparable tuple of ints."""
-    try:
-        return tuple(int(x) for x in v.lstrip("v").split("."))
-    except ValueError:
-        return (0,)
+    """Parse a 'X.Y.Z' version string into a comparable tuple of ints.
+
+    Each dot-separated component is reduced to its leading run of digits
+    (e.g. "1", "2", "1rc1" -> 1, 2, 1). A component with no leading digit
+    becomes 0. This avoids collapsing the whole version to ``(0,)`` just
+    because one segment has a non-numeric suffix like "-rc1" or "beta".
+    """
+    parts = v.lstrip("v").split(".")
+    result = []
+    for p in parts:
+        m = re.match(r"\d+", p)
+        result.append(int(m.group()) if m else 0)
+    return tuple(result)
 
 
 def _check_version_compatibility(metadata: dict) -> bool:
     """Check the running script version against the model's declared range.
 
     Fields read from metadata (both optional):
-        min_script_version : str  – oldest compatible script version.
-        max_script_version : str  – newest tested script version.
+        min_script_version : str  - oldest compatible script version.
+        max_script_version : str  - newest tested script version.
 
     Returns True if a fatal incompatibility is detected (script too old),
     False otherwise. A warning is printed when the script is newer than
@@ -364,7 +418,7 @@ def _exit(code: int = 0) -> None:
     try:
         wait_for_archiver()
     except Exception as e:
-        handle_warning('error', f'Compression error: {e}')
+        handle_warning('error', f'Compression error: {e}', log)
         sys.exit(code)
     sys.exit(code)
 

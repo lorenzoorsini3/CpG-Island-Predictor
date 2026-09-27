@@ -40,9 +40,6 @@ Excluded features
   aac_content, aag_content, cac_content, ttc_content, gtt_content
 - Dataset design artefact: length
 - Collinear with g_content / c_content: gg_content, cc_content
-
-Note: ``genomic_position`` is a categorical column handled separately by
-the pipeline (one-hot encoding) and is NOT computed here.
 """
 
 from collections import Counter
@@ -101,12 +98,22 @@ _KMER_MAP = {f: f[:-8].upper() for f in FEATURES_ORDER}
 
 def extract_features(seq: str) -> dict | None:
     """Extract sequence-based features from a DNA string.
-
-    Non-ATCG characters are silently removed before processing.
-
+ 
+    Ambiguous IUPAC characters other than N are silently removed before
+    processing. ``N`` itself is *not* removed — it is left in the sequence,
+    which means di-/tri-nucleotide windows spanning an N are counted in an
+    internal pool keyed by "N", "NN", "NNN", etc. None of those keys match
+    any feature in ``FEATURES_ORDER`` (which only covers A/C/G/T k-mers), so
+    they simply never contribute to the returned dict — they are excluded
+    by omission rather than by being stripped from ``seq``. A sequence made
+    up mostly or entirely of N therefore yields an all-zero feature vector.
+    Callers should reject such sequences before calling this function (see
+    the minimum valid-base fraction check in ``CIP.py``) rather than relying
+    on this function to flag them.
+ 
     Args:
         seq: Raw DNA sequence string (case-insensitive).
-
+ 
     Returns:
         A dict mapping each name in ``FEATURES_ORDER`` to its raw count,
         or ``None`` on error.
