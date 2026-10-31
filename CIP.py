@@ -174,7 +174,7 @@ def predict_from_fasta(
     fasta_path: str,
     output_formats: set[str] | None = None,
     threshold: float = 0.5
-) -> None:
+) -> dict | None:
     """Run predictions on all sequences in a FASTA file.
 
     One prediction is made per sequence using only sequence-based features
@@ -186,6 +186,13 @@ def predict_from_fasta(
         model:          A loaded ONNX InferenceSession.
         fasta_path:     Path to the input FASTA file.
         output_formats: Set of extra output formats (``"bed"``, ``"gff3"``).
+        threshold:      Probability cut-off for calling a CpG island.
+
+    Returns:
+        A summary dict (``fasta``, ``n_records``, ``n_predicted``, ``n_island``,
+        ``n_non_island``, ``n_skipped``, ``files``) when predictions were made,
+        or None when nothing was predicted. The command-line loop ignores it;
+        the GUI shows it in its side panel.
     """
     if output_formats is None:
         output_formats = set()
@@ -358,6 +365,17 @@ def predict_from_fasta(
     for path in written_files:
         print(f"      {path}")
     log.info("Run complete — written: %s", written_files)
+
+    n_island = sum(1 for item in print_items if item["pred"] == 1)
+    return {
+        "fasta":        str(fasta_path),
+        "n_records":    len(records),
+        "n_predicted":  len(print_items),
+        "n_island":     n_island,
+        "n_non_island": len(print_items) - n_island,
+        "n_skipped":    len(records) - len(print_items),
+        "files":        [str(p) for p in written_files],
+    }
 
 
 def _parse_version(v: str) -> tuple[int, ...]:

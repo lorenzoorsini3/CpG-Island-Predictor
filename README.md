@@ -41,12 +41,33 @@ Install the required dependencies with:
 pip install -r requirements.txt
 ```
 
+The graphical interface (`gui.py`) also needs Tkinter, which ships with Python on most systems. On Debian/Ubuntu/Pop!_OS install it with `sudo apt install python3-tk` (Fedora: `sudo dnf install python3-tkinter`). It is not needed for the command-line version.
+
 ## Usage
+
+### Graphical interface
+
+```bash
+python3 gui.py
+```
+
+A terminal-style window opens (maximized; `F11` toggles full screen). Use **Open FASTA…** to pick a file, or type `path [--bed] [--gff3]` in the input line as in the command-line version (quotes are accepted for paths with spaces). The **BED** and **GFF3** switches in the top bar add those output files to the run. The console shows exactly what the command-line version prints, including the progress bar; the side panel shows the model information and a summary of the last run. Other buttons and lines: **Outputs** (opens the `outs/` folder), **Clear**, `/help`, `/clear`, `/quit`.
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Run |
+| `Up` / `Down` | Input history |
+| `Ctrl+O` | Open FASTA… |
+| `Ctrl+L` | Clear the screen |
+| `Ctrl+=` / `Ctrl+-` | Larger / smaller font |
+| `F11` | Full screen on/off |
+
+### Command line
 
 Run `CIP.py` from the command line (or by double-clicking it). When prompted, provide the path to a FASTA file containing the sequences to analyze:
 
 ```
-CpG Island Predictor (CIP) v4.2.2
+CpG Island Predictor (CIP) v4.3.0
 Copyright: AGPL-3.0-or-later (see LICENSE file)
 See https://github.com/lorenzoorsini3/CpG-Island-Predictor for source code
     Model architecture : v3.4.0
@@ -75,7 +96,8 @@ If the FASTA header contains genomic coordinates in `chr:start-end` format (e.g.
 
 ```
 CpG_Island_Predictor/
-├── CIP.py                      # Main entry point
+├── CIP.py                      # Main entry point (command line)
+├── gui.py                      # Graphical interface (Tkinter); uses the functions of CIP.py
 ├── requirements.txt            # Python dependencies
 ├── LICENSE                     # AGPL-3.0 license
 ├── README.md                   # This file
